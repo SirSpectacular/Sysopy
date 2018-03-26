@@ -1,0 +1,24 @@
+Added and then removed 1000 blocks of size 1000 each, 1000 times. Mode 1 (0-dynamic 1-static)
+	Real time:   0.010159 
+	User time:   0.010161 
+	System time: 0.000000 
+Added and removed alternately 1000 blocks of size 1000 each, 1000 times. Mode 1 (0-dynamic 1-static)
+	Real time:   0.013099 
+	User time:   0.013084 
+	System time: 0.000000 
+Allocated and freed  1000 arays with size 1000 blocks each, 3325441 times. Mode 1 (0-dynamic 1-static)
+	Real time:   0.000004 
+	User time:   0.000004 
+	System time: 0.000000 
+Added and then removed 1000 blocks of size 1000 each, 1000 times. Mode 0 (0-dynamic 1-static)
+	Real time:   0.010124 
+	User time:   0.010125 
+	System time: 0.000000 
+Added and removed alternately 1000 blocks of size 1000 each, 1000 times. Mode 0 (0-dynamic 1-static)
+	Real time:   0.016148 
+	User time:   0.015142 
+	System time: 0.001004 
+Allocated and freed  1000 arays with size 1000 blocks each, 1023244 times. Mode 0 (0-dynamic 1-static)
+	Real time:   0.000013 
+	User time:   0.000012 
+	System time: 0.000001 

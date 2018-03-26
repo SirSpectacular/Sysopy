@@ -1,0 +1,123 @@
+Generated file with 3000 records, 4 bytes each:
+	User time:   0.000000 
+	System time: 0.000582 
+Copied file containing 3000 records, 4 bytes each to another file, with usage of "0" functions (0-sys, 1-lib):
+	User time:   0.000000 
+	System time: 0.005852 
+Sorted file containing 3000 records, 4 bytes each, with usage of "0" functions (0-sys, 1-lib):
+	User time:   0.882982 
+	System time: 3.204895 
+Copied file containing 3000 records, 4 bytes each to another file, with usage of "1" functions (0-sys, 1-lib):
+	User time:   0.000000 
+	System time: 0.000457 
+Sorted file containing 3000 records, 4 bytes each, with usage of "1" functions (0-sys, 1-lib):
+	User time:   0.632255 
+	System time: 1.013130 
+Generated file with 5000 records, 4 bytes each:
+	User time:   0.000949 
+	System time: 0.000000 
+Copied file containing 5000 records, 4 bytes each to another file, with usage of "0" functions (0-sys, 1-lib):
+	User time:   0.000971 
+	System time: 0.007902 
+Sorted file containing 5000 records, 4 bytes each, with usage of "0" functions (0-sys, 1-lib):
+	User time:   2.594051 
+	System time: 8.724379 
+Copied file containing 5000 records, 4 bytes each to another file, with usage of "1" functions (0-sys, 1-lib):
+	User time:   0.000000 
+	System time: 0.000578 
+Sorted file containing 5000 records, 4 bytes each, with usage of "1" functions (0-sys, 1-lib):
+	User time:   1.722967 
+	System time: 2.893228 
+Generated file with 3000 records, 512 bytes each:
+	User time:   0.026586 
+	System time: 0.005057 
+Copied file containing 3000 records, 512 bytes each to another file, with usage of "0" functions (0-sys, 1-lib):
+	User time:   0.000246 
+	System time: 0.006818 
+Sorted file containing 3000 records, 512 bytes each, with usage of "0" functions (0-sys, 1-lib):
+	User time:   0.959124 
+	System time: 3.374406 
+Copied file containing 3000 records, 512 bytes each to another file, with usage of "1" functions (0-sys, 1-lib):
+	User time:   0.000000 
+	System time: 0.004294 
+Sorted file containing 3000 records, 512 bytes each, with usage of "1" functions (0-sys, 1-lib):
+	User time:   0.764798 
+	System time: 1.539786 
+Generated file with 5000 records, 512 bytes each:
+	User time:   0.038440 
+	System time: 0.016069 
+Copied file containing 5000 records, 512 bytes each to another file, with usage of "0" functions (0-sys, 1-lib):
+	User time:   0.000779 
+	System time: 0.009665 
+Sorted file containing 5000 records, 512 bytes each, with usage of "0" functions (0-sys, 1-lib):
+	User time:   2.653166 
+	System time: 9.418962 
+Copied file containing 5000 records, 512 bytes each to another file, with usage of "1" functions (0-sys, 1-lib):
+	User time:   0.000000 
+	System time: 0.006412 
+Sorted file containing 5000 records, 512 bytes each, with usage of "1" functions (0-sys, 1-lib):
+	User time:   2.229961 
+	System time: 4.142853 
+Generated file with 3000 records, 4096 bytes each:
+	User time:   0.098996 
+	System time: 0.194053 
+Copied file containing 3000 records, 4096 bytes each to another file, with usage of "0" functions (0-sys, 1-lib):
+	User time:   0.001030 
+	System time: 0.015336 
+Sorted file containing 3000 records, 4096 bytes each, with usage of "0" functions (0-sys, 1-lib):
+	User time:   0.962587 
+	System time: 5.192845 
+Copied file containing 3000 records, 4096 bytes each to another file, with usage of "1" functions (0-sys, 1-lib):
+	User time:   0.000000 
+	System time: 0.028779 
+Sorted file containing 3000 records, 4096 bytes each, with usage of "1" functions (0-sys, 1-lib):
+	User time:   1.174374 
+	System time: 5.261549 
+Generated file with 5000 records, 4096 bytes each:
+	User time:   0.335471 
+	System time: 0.260858 
+Copied file containing 5000 records, 4096 bytes each to another file, with usage of "0" functions (0-sys, 1-lib):
+	User time:   0.001004 
+	System time: 0.022303 
+Sorted file containing 5000 records, 4096 bytes each, with usage of "0" functions (0-sys, 1-lib):
+	User time:   2.683865 
+	System time: 15.144097 
+Copied file containing 5000 records, 4096 bytes each to another file, with usage of "1" functions (0-sys, 1-lib):
+	User time:   0.002978 
+	System time: 0.025806 
+Sorted file containing 5000 records, 4096 bytes each, with usage of "1" functions (0-sys, 1-lib):
+	User time:   3.345466 
+	System time: 15.337333 
+Generated file with 3000 records, 8192 bytes each:
+	User time:   0.410647 
+	System time: 0.097376 
+Copied file containing 3000 records, 8192 bytes each to another file, with usage of "0" functions (0-sys, 1-lib):
+	User time:   0.000000 
+	System time: 0.016193 
+Sorted file containing 3000 records, 8192 bytes each, with usage of "0" functions (0-sys, 1-lib):
+	User time:   0.999817 
+	System time: 8.260927 
+Copied file containing 3000 records, 8192 bytes each to another file, with usage of "1" functions (0-sys, 1-lib):
+	User time:   0.000000 
+	System time: 0.029717 
+Sorted file containing 3000 records, 8192 bytes each, with usage of "1" functions (0-sys, 1-lib):
+	User time:   1.205721 
+	System time: 8.096040 
+Generated file with 5000 records, 8192 bytes each:
+	User time:   0.601480 
+	System time: 0.247163 
+Copied file containing 5000 records, 8192 bytes each to another file, with usage of "0" functions (0-sys, 1-lib):
+	User time:   0.000344 
+	System time: 0.031857 
+Sorted file containing 5000 records, 8192 bytes each, with usage of "0" functions (0-sys, 1-lib):
+	User time:   2.743670 
+	System time: 23.389944 
+Copied file containing 5000 records, 8192 bytes each to another file, with usage of "1" functions (0-sys, 1-lib):
+	User time:   0.001008 
+	System time: 0.056883 
+Sorted file containing 5000 records, 8192 bytes each, with usage of "1" functions (0-sys, 1-lib):
+	User time:   3.342680 
+	System time: 23.673230 
+Sorted file containing 5 records, 1 bytes each, with usage of "0" functions (0-sys, 1-lib):
+	User time:   0.000007 
+	System time: 0.000171 
