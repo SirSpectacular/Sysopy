@@ -161,7 +161,7 @@ int parseArgs( char **path, __rlim_t *procLimit, __rlim_t *memLimit, int argc, c
     if(*dump != '\0') return 1;
     *memLimit = (__rlim_t ) strtol(argv[3], &dump, 10);
     if(*dump != '\0') return 1;
-    *memLimit *= 100000;
+    *memLimit *= 1000000;
 
     return 0;
 }
