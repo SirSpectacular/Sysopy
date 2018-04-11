@@ -151,7 +151,7 @@ int main(int argc, char **argv){
             printf("%sSent signal no. %s%d - %s%s to child process%s #%d\n", ANSI_YELLOW, ANSI_BLUE, signal1, strsignal(signal1), ANSI_YELLOW, ANSI_RESET, ++counters.sendCounter);
         else
             printf("%sFailed to send signal no. %d - %s to child process%s #%d\n", ANSI_RED, signal1, strsignal(signal1), ANSI_RESET, ++counters.sendCounter);
-        if(Type == 2) pause();
+        if(Type == 2) while(counters.sendCounter != counters.returnCounter) {};
     }
 
     if(!kill(childPID, signal2))
