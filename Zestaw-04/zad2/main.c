@@ -18,14 +18,14 @@
 
 struct{
     pid_t *pids;
-    int *querries;
     int counter;
 } children;
 
+int K;
+int N;
+
 void handleINT(int sig){
-    for(int i = 0; i < children.counter; i++)
-        if(!waitpid(children.pids[i], NULL, WNOHANG))
-            kill(children.pids[i], SIGKILL);
+    kill(0, SIGKILL);
     exit(15);
 }
 
@@ -36,8 +36,22 @@ void handleRuntimeSignals(int sig, siginfo_t *info, void *ucontext) {
 void handleUSR1(int sig, siginfo_t *info, void *ucontext) {
     printf("%sReceived signal no. %s%d - %s%s, from process with PID: %s%d%s\n", ANSI_YELLOW, ANSI_BLUE, sig, strsignal(sig), ANSI_YELLOW, ANSI_BLUE, info->si_pid, ANSI_RESET);
     children.pids[children.counter] = info->si_pid;
-    children.querries[children.counter] = 1;
     children.counter++;
+
+    if(children.counter == K) {
+        for(int i = 0; i < children.counter; i++) {
+                kill(children.pids[i], SIGUSR2);
+                printf("%sSent signal no. %s%d - %s%s to child process with PID: %s%d%s\n", ANSI_YELLOW, ANSI_BLUE,
+                       SIGUSR2, strsignal(SIGUSR2), ANSI_YELLOW, ANSI_BLUE, children.pids[i], ANSI_RESET);
+        }
+    }
+    else if (children.counter > K) {
+        kill(children.pids[children.counter - 1], SIGUSR2);
+        printf("%sSent signal no. %s%d - %s%s to child process with PID: %s%d%s\n", ANSI_YELLOW, ANSI_BLUE,
+               SIGUSR2, strsignal(SIGUSR2), ANSI_YELLOW, ANSI_BLUE, children.pids[children.counter], ANSI_RESET);
+    }
+
+
 }
 
 void handleUSR2(int sig){
@@ -87,15 +101,13 @@ int parseArgs(int *N, int *K, int argc, char **argv) {
 
 int main(int argc, char **argv){
 
-    int N;
-    int K;
     if(parseArgs(&N, &K, argc, argv)){
         printf("%sWrong format of cmd line parameters%s\n", ANSI_YELLOW, ANSI_RESET);
         return 1;
     }
 
     struct sigaction actINT;
-    actINT.sa_sigaction = handleINT;
+    actINT.sa_handler = handleINT;
     sigemptyset(&actINT.sa_mask);
     actINT.sa_flags = 0;
     sigaction(SIGINT, &actINT, NULL);
@@ -106,20 +118,15 @@ int main(int argc, char **argv){
     actUSR1.sa_flags = SA_SIGINFO;
     sigaction(SIGUSR1, &actUSR1, NULL);
 
-
-
     struct sigaction actRuntime;
     actRuntime.sa_sigaction = handleRuntimeSignals;
     sigemptyset(&actRuntime.sa_mask);
     actRuntime.sa_flags = SA_SIGINFO;
-    for(int i = 0; i < 31; i++){
+    for(int i = 0; i < 32; i++){
         sigaction(SIGRTMIN + i, &actRuntime, NULL);
     }
 
     children.pids = malloc(N * sizeof(pid_t));
-    children.querries = malloc(N * sizeof(int));
-    for(int i = 0; i < N; i++)
-        children.querries[i] = 0;
     children.counter = 0;
 
     pid_t childPID;
@@ -146,8 +153,22 @@ int main(int argc, char **argv){
 
     int status;
     for(int i = 0; i < N; i++){
-        waitpid(children.pids[i], &status, 0);
-        printf("%sChild with PID: %s%d%s ended with status code %s%d%s\n", ANSI_YELLOW, ANSI_BLUE, children.pids[i], ANSI_YELLOW, ANSI_BLUE, WEXITSTATUS(status), ANSI_RESET);
-    }
+        do {
+            int w = waitpid(children.pids[i], &status, WUNTRACED | WCONTINUED);
+            if (w == -1) {
+                perror("waitpid");
+            }
 
+            if (WIFEXITED(status)) {
+                printf("%sChild with PID: %s%d%s ended with status code %s%d%s\n", ANSI_YELLOW, ANSI_BLUE, children.pids[i], ANSI_YELLOW, ANSI_BLUE, WEXITSTATUS(status), ANSI_RESET);
+            } else if (WIFSIGNALED(status)) {
+                printf("killed by signal %d\n", WTERMSIG(status));
+            } else if (WIFSTOPPED(status)) {
+                printf("stopped by signal %d\n", WSTOPSIG(status));
+            } else if (WIFCONTINUED(status)) {
+                printf("continued\n");
+            }
+        } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+    }
+    exit(EXIT_SUCCESS);
 }
