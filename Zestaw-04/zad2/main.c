@@ -136,20 +136,7 @@ int main(int argc, char **argv){
         else
             printf("%sSpawned child process with PID: %s%d%s\n", ANSI_YELLOW, ANSI_BLUE, childPID, ANSI_RESET);
 
-    int flag = 0;
-    while(!flag) {
-        if (children.counter >= K) {
-            for (int i = 0; i < N; i++) {
-                flag = 1;
-                if (children.querries[i] == 1) {
-                    flag = 0;
-                    children.querries[i] = 0;
-                    kill(children.pids[i], SIGUSR2);
-                    printf("%sSent signal no. %s%d - %s%s to child process with PID: %s%d%s\n", ANSI_YELLOW, ANSI_BLUE, SIGUSR2, strsignal(SIGUSR2), ANSI_YELLOW, ANSI_BLUE, children.pids[i], ANSI_RESET);
-                }
-            }
-        }
-    }
+    while(children.counter != N) {}
 
     int status;
     for(int i = 0; i < N; i++){
