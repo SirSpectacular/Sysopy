@@ -36,11 +36,16 @@ int main(int argc, char **argv) {
         printf("%s 3\n", strerror(errno));
         return 1;
     }
+
+
+
+    printf("%d\n", serverQid);
     privateQid = msgget(privateKey, S_IRWXU | S_IRWXG | IPC_CREAT | IPC_EXCL); //IPC_PRIVATE
     if(privateQid == -1) {
         printf("%s 4\n", strerror(errno));
         return 1;
     }
+    printf("%d\n", privateQid);
 
     struct msgBuffer_Key keyBuffer;
 
@@ -52,7 +57,8 @@ int main(int argc, char **argv) {
         printf("%s 5\n", strerror(errno));
         return 1;
     }
-
+    printf("Send 1: %d - key %lo -"
+           "type\n", keyBuffer.key, keyBuffer.mtype );
     struct msgBuffer_Int idBuffer;
 
 
@@ -61,7 +67,7 @@ int main(int argc, char **argv) {
         printf("%s 6\n", strerror(errno));
         return 1;
     }
-
+    printf("Got 1: %d - id %lo -type\n", idBuffer.value, idBuffer.mtype);
     int myID = idBuffer.value;
 
     FILE * inputFile = fopen(argv[1], "r");
@@ -85,14 +91,19 @@ int main(int argc, char **argv) {
 
                 querryBuffer.mtype = MIRROR + i;
                 querryBuffer.id = myID;
-               // ptr += 4;
                 ptr = strtok(NULL, "\n");
-                strcpy(querryBuffer.buffer, ptr);
-                errorCode = msgsnd(serverQid, &querryBuffer, sizeof(querryBuffer) - sizeof(long), IPC_NOWAIT);
+                if(ptr != NULL) {
+                    strcpy(querryBuffer.buffer, ptr);
+                }
+                else
+                    querryBuffer.buffer[0] = NULL;
+                errorCode = msgsnd(serverQid, &querryBuffer, sizeof(querryBuffer) - sizeof(long), 0);
                 if (errorCode == -1 && errno != EAGAIN) {
                     printf("%s 8\n", strerror(errno));
                     return 1;
                 }
+                printf("Send 2: %s - msg %d - id %lo - type\n", querryBuffer.buffer, querryBuffer.id, querryBuffer.mtype);
+                break;
             }
         }
         if (!isProperCmd) {
@@ -101,15 +112,15 @@ int main(int argc, char **argv) {
         }
     }
 
-    struct msgBuffer_Querry responseBuffer;
+    struct msgBuffer_String responseBuffer;
     while(1){
         errorCode = (int)msgrcv(privateQid, &responseBuffer, sizeof(responseBuffer) - sizeof(long), KEY_ID_EXCHANGE, MSG_EXCEPT);
         if(errorCode == -1) {
             printf("%s 9\n", strerror(errno));
             return 1;
         }
-        printf("%s\n", responseBuffer.buffer);
+        printf("Got 2: %s - msg %lo - type\n", responseBuffer.buffer, responseBuffer.mtype );
+
     }
-    //NO MSGES
-    return 0;
+
 }

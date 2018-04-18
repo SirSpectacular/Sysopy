@@ -22,8 +22,9 @@ int serverQid;
 void reverseString(char *dest, char *source) {
     size_t len = strlen(source);
     for (int i = 0; i < len; i++) {
-        dest[i] = source[len - i];
+        dest[i] = source[len - i - 1];
     }
+    dest[len] = '\0';
 }
 
 int stringToInt(int *dest, char *source) {
@@ -69,12 +70,15 @@ int main(int argc, char **argv) {
                 return 1;
             }
         } else {
+            //printf("Got 1: %d - key %lo - type\n", keyBuffer.key, keyBuffer.mtype );
+
             clients[clientCounter].key = keyBuffer.key;
             clients[clientCounter].qid = msgget(clients[clientCounter].key, S_IRWXU | S_IRWXG);
             if (clients[clientCounter].qid == -1) {
                 printf("%s 4\n", strerror(errno));
                 return 1;
             }
+
 
             idBuffer.mtype = KEY_ID_EXCHANGE;
             idBuffer.value = clientCounter;
@@ -83,10 +87,9 @@ int main(int argc, char **argv) {
                 printf("%s 5\n", strerror(errno));
                 return 1;
             }
+           // printf("Sent id: %d - id %lo - type\n", idBuffer.value, idBuffer.mtype);
             clientCounter++;
         }
-
-        struct msgBuffer_String responseBuffer;
 
         errorCode = (int) msgrcv(serverQid, &querryBuffer, sizeof(querryBuffer) - sizeof(long), KEY_ID_EXCHANGE, MSG_EXCEPT | IPC_NOWAIT);
         if (errorCode == -1) {
@@ -94,15 +97,20 @@ int main(int argc, char **argv) {
                 printf("%s 6\n", strerror(errno));
                 return 1;
             }
-        } else {
+        }
+        else {
+            struct msgBuffer_String responseBuffer;
+            printf("Got querry %s - msg %d - id %lo - type\n", querryBuffer.buffer, querryBuffer.id, querryBuffer.mtype);
             switch (querryBuffer.mtype) {
+                case KEY_ID_EXCHANGE:
                 case MIRROR: {
                     reverseString(responseBuffer.buffer, querryBuffer.buffer);
+                    break;
                 }
                 case ADD: {
                     int num1, num2;
                     errorCode = stringToInt(&num1, strtok(querryBuffer.buffer, " \n\t"));
-                    errorCode |= stringToInt(&num2, strtok(NULL, "\n\t"));
+                    errorCode |= stringToInt(&num2, strtok(NULL, " \n\t"));
                     if (errorCode != 0 || strtok(NULL, " \n\t") != NULL)
                         sprintf(responseBuffer.buffer, "Wrong syntax of ADD querry from client no. %d\n",
                                 querryBuffer.id);
@@ -113,34 +121,34 @@ int main(int argc, char **argv) {
                 case SUB: {
                     int num1, num2;
                     errorCode = stringToInt(&num1, strtok(querryBuffer.buffer, " \n\t"));
-                    errorCode |= stringToInt(&num2, strtok(NULL, "\n\t"));
+                    errorCode |= stringToInt(&num2, strtok(NULL, " \n\t"));
                     if (errorCode != 0 || strtok(NULL, " \n\t") != NULL)
                         sprintf(responseBuffer.buffer, "Wrong syntax of SUB querry from client no. %d\n",
                                 querryBuffer.id);
                     else
-                        sprintf(responseBuffer.buffer, "%d", num1 - num2);
+                        sprintf(responseBuffer.buffer, "%d\n", num1 - num2);
                     break;
                 }
                 case MUL: {
                     int num1, num2;
                     errorCode = stringToInt(&num1, strtok(querryBuffer.buffer, " \n\t"));
-                    errorCode |= stringToInt(&num2, strtok(NULL, "\n\t"));
+                    errorCode |= stringToInt(&num2, strtok(NULL, " \n\t"));
                     if (errorCode != 0 || strtok(NULL, " \n\t") != NULL)
                         sprintf(responseBuffer.buffer, "Wrong syntax of MUL querry from client no. %d\n",
                                 querryBuffer.id);
                     else
-                        sprintf(responseBuffer.buffer, "%d", num1 * num2);
+                        sprintf(responseBuffer.buffer, "%d\n", num1 * num2);
                     break;
                 }
                 case DIV: {
                     int num1, num2;
                     errorCode = stringToInt(&num1, strtok(querryBuffer.buffer, " \n\t"));
-                    errorCode |= stringToInt(&num2, strtok(NULL, "\n\t"));
+                    errorCode |= stringToInt(&num2, strtok(NULL, " \n\t"));
                     if (errorCode != 0 || strtok(NULL, " \n\t") != NULL)
                         sprintf(responseBuffer.buffer, "Wrong syntax of MUL querry from client no. %d\n",
                                 querryBuffer.id);
                     else
-                        sprintf(responseBuffer.buffer, "%d", num1 * num2);
+                        sprintf(responseBuffer.buffer, "%d\n", num1 * num2);
                     break;
                 }
                 case TIME: {
@@ -161,10 +169,10 @@ int main(int argc, char **argv) {
             errorCode = msgsnd(clients[querryBuffer.id].qid, &responseBuffer, sizeof(responseBuffer) - sizeof(long), 0);
             if (errorCode == -1) {
                 for(int i = 0; i < 10; i++)
-                    printf("%d\n", clients[i].qid);
                 printf("%s 7\n", strerror(errno));
                 return 1;
             }
+            printf("Sent response: %s - msg %lo - type\n", responseBuffer.buffer, responseBuffer.mtype);
         }
     }
 }
