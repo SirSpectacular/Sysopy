@@ -10,39 +10,31 @@
 
 #define SERVER_ID 's'
 
-enum OperationTypes{
-    KEY_ID_EXCHANGE = 1,
+enum operationType{
+    REGISTERY = 1,
     MIRROR,
     ADD,
     SUB,
     MUL,
     DIV,
     TIME,
-    END
+    END,
+    ERROR
 };
 
-struct msgBuffer_Key {
-    long mtype;
-    key_t key;
-};
-struct msgBuffer_Int {
-    long mtype;
-    int value;
-};
-struct msgBuffer_Querry {
+char* operations[] = {"MIRROR", "ADD", "SUB", "MUL", "DIV", "TIME", "END"};
+
+struct msgBuffer {
     long mtype;
     int id;
+    key_t key;
     char buffer[MAX_LINE_SIZE];
 };
 
-struct msgBuffer_String {
-    long mtype;
-    char buffer[MAX_LINE_SIZE];
-};
+const size_t MSGBUF_RAW_SIZE = sizeof(struct msgBuffer) - sizeof(long);
 
 
 struct clientInfo {
-    key_t key;
     int qid;
 };
 

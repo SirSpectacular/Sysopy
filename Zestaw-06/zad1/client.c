@@ -8,7 +8,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 #include "xXxJebaczMatek2003xXx.h"
+
+int initClient();
+int registerClient();
 
 int serverQid, privateQid;
 key_t serverKey, privateKey;
@@ -17,58 +21,22 @@ void cleanUp(){
     msgctl(privateQid, IPC_RMID, (struct msqid_ds *) NULL);
 }
 
+void handleINT(int sig){
+    exit(0);
+}
+
 int main(int argc, char **argv) {
-    atexit(cleanUp);
-    char *homeEnv = getenv("HOME");
-    serverKey = ftok(homeEnv, SERVER_ID);
-    if(serverKey == -1) {
-        printf("%s 1\n", strerror(errno));
-        return 1;
-    }
-    privateKey = ftok(homeEnv, getpid());
-    if(privateKey == -1) {
-        printf("%s 2\n", strerror(errno));
-        return 1;
-    }
-
-    serverQid = msgget(serverKey, S_IRWXU | S_IRWXG );
-    if(serverQid == -1) {
+    errorCode = initClient();
+    if(errorCode == -1){
         printf("%s 3\n", strerror(errno));
-        return 1;
+        exit(errno);
     }
 
-
-
-    printf("%d\n", serverQid);
-    privateQid = msgget(privateKey, S_IRWXU | S_IRWXG | IPC_CREAT | IPC_EXCL); //IPC_PRIVATE
-    if(privateQid == -1) {
-        printf("%s 4\n", strerror(errno));
-        return 1;
-    }
-    printf("%d\n", privateQid);
-
-    struct msgBuffer_Key keyBuffer;
-
-    keyBuffer.mtype = KEY_ID_EXCHANGE;
-    keyBuffer.key = privateKey;
-
-    errorCode = msgsnd(serverQid, &keyBuffer, sizeof(keyBuffer) - sizeof(long), 0);
-    if(errorCode == -1) {
-        printf("%s 5\n", strerror(errno));
-        return 1;
-    }
-    printf("Send 1: %d - key %lo -"
-           "type\n", keyBuffer.key, keyBuffer.mtype );
-    struct msgBuffer_Int idBuffer;
-
-
-    errorCode = (int) msgrcv(privateQid, &idBuffer, sizeof(idBuffer) - sizeof(long), KEY_ID_EXCHANGE, 0);
-    if(errorCode == -1) {
+    int myID = registerClient();
+    if(myID == -1){
         printf("%s 6\n", strerror(errno));
-        return 1;
+        exit(errno);
     }
-    printf("Got 1: %d - id %lo -type\n", idBuffer.value, idBuffer.mtype);
-    int myID = idBuffer.value;
 
     FILE * inputFile = fopen(argv[1], "r");
     if(inputFile == NULL){
@@ -77,32 +45,29 @@ int main(int argc, char **argv) {
     }
 
     char lineBuffer[MAX_LINE_SIZE];
-    char* operations[] = {"MIRROR", "ADD", "SUB", "MUL", "DIV", "TIME", "END"};
-    struct msgBuffer_Querry querryBuffer;
+    struct msgBuffer queryBuffer;
+    struct msgBuffer responseBuffer;
 
     while(fgets(lineBuffer, MAX_LINE_SIZE, inputFile)) {
         int isProperCmd = 0;
         char * ptr = strtok(lineBuffer, " \n\t");
         for (int i = 0; i < sizeof(operations) / sizeof(char *); i++) {
             if (strcmp(operations[i], ptr) == 0) {
-
                 isProperCmd = 1;
 
-
-                querryBuffer.mtype = MIRROR + i;
-                querryBuffer.id = myID;
+                queryBuffer.mtype = MIRROR + i;
+                queryBuffer.id = myID;
                 ptr = strtok(NULL, "\n");
                 if(ptr != NULL) {
-                    strcpy(querryBuffer.buffer, ptr);
+                    strcpy(queryBuffer.buffer, ptr);
                 }
                 else
-                    querryBuffer.buffer[0] = NULL;
-                errorCode = msgsnd(serverQid, &querryBuffer, sizeof(querryBuffer) - sizeof(long), 0);
+                    queryBuffer.buffer[0] = '\0';
+                errorCode = msgsnd(serverQid, &queryBuffer, MSGBUF_RAW_SIZE, 0);
                 if (errorCode == -1 && errno != EAGAIN) {
                     printf("%s 8\n", strerror(errno));
                     return 1;
                 }
-                printf("Send 2: %s - msg %d - id %lo - type\n", querryBuffer.buffer, querryBuffer.id, querryBuffer.mtype);
                 break;
             }
         }
@@ -112,15 +77,55 @@ int main(int argc, char **argv) {
         }
     }
 
-    struct msgBuffer_String responseBuffer;
+
     while(1){
-        errorCode = (int)msgrcv(privateQid, &responseBuffer, sizeof(responseBuffer) - sizeof(long), KEY_ID_EXCHANGE, MSG_EXCEPT);
+        errorCode = (int)msgrcv(privateQid, &responseBuffer, MSGBUF_RAW_SIZE, REGISTERY, MSG_EXCEPT);
         if(errorCode == -1) {
             printf("%s 9\n", strerror(errno));
             return 1;
         }
-        printf("Got 2: %s - msg %lo - type\n", responseBuffer.buffer, responseBuffer.mtype );
+        printf("Received msg from server: %s\noutput of query: %s\n\n",
+               responseBuffer.buffer,
+               operations[responseBuffer.mtype - MIRROR]
+        );
 
     }
 
+}
+
+int initClient(){
+    atexit(cleanUp);
+    signal(SIGINT, handleINT);
+
+    char *homeEnv = getenv("HOME");
+    serverKey = ftok(homeEnv, SERVER_ID);
+    if(serverKey == -1)
+        return -1;
+    privateKey = ftok(homeEnv, getpid());
+    if(privateKey == -1)
+        return -1;
+    serverQid = msgget(serverKey, S_IRWXU | S_IRWXG );
+    if(serverQid == -1)
+        return -1;
+    privateQid = msgget(privateKey, S_IRWXU | S_IRWXG | IPC_CREAT | IPC_EXCL);
+    if(privateQid == -1)
+        return -1;
+    return 0;
+}
+
+int registerClient(){
+    struct msgBuffer queryBuffer;
+    struct msgBuffer responseBuffer;
+
+    queryBuffer.mtype = REGISTERY;
+    queryBuffer.key = privateKey;
+
+    errorCode = msgsnd(serverQid, &queryBuffer, MSGBUF_RAW_SIZE, 0);
+    if(errorCode == -1)
+        return -1;
+
+    errorCode = (int) msgrcv(privateQid, &responseBuffer, MSGBUF_RAW_SIZE, REGISTERY, 0);
+    if(errorCode == -1)
+        return -1;
+    return responseBuffer.id;
 }

@@ -1,0 +1,5 @@
+MIRROR gfbgfnfgrsdf
+TIME
+ADD 2 2
+SUB 12 3
+END
