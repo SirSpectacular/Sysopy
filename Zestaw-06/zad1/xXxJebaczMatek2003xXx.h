@@ -11,7 +11,7 @@
 #define SERVER_ID 's'
 
 enum OperationTypes{
-    KEY_ID_EXCHANGE,
+    KEY_ID_EXCHANGE = 1,
     MIRROR,
     ADD,
     SUB,
@@ -35,10 +35,17 @@ struct msgBuffer_Querry {
     char buffer[MAX_LINE_SIZE];
 };
 
+struct msgBuffer_String {
+    long mtype;
+    char buffer[MAX_LINE_SIZE];
+};
+
 
 struct clientInfo {
     key_t key;
     int qid;
 };
+
+int errorCode;
 
 #endif //IPC_XXXJEBACZMATEK2003XXX_H
