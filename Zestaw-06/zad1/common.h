@@ -1,9 +1,23 @@
 //
 // Created by student on 17.04.18.
 //
+#ifndef COMMON_H
+#define COMMON_H
 
-#ifndef IPC_XXXJEBACZMATEK2003XXX_H
-#define IPC_XXXJEBACZMATEK2003XXX_H
+#define _GNU_SOURCE
+
+#include <sys/types.h>
+#include <sys/msg.h>
+#include <sys/ipc.h>
+#include <stdio.h>
+#include <errno.h>
+#include <memory.h>
+#include <stdlib.h>
+#include <time.h>
+#include <sys/time.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <unistd.h>
 
 #define MAX_CLIENT_NUMBER 1024
 #define MAX_LINE_SIZE 512
@@ -18,11 +32,9 @@ enum operationType{
     MUL,
     DIV,
     TIME,
-    END,
-    ERROR
+    END
 };
 
-char* operations[] = {"MIRROR", "ADD", "SUB", "MUL", "DIV", "TIME", "END"};
 
 struct msgBuffer {
     long mtype;
@@ -40,4 +52,4 @@ struct clientInfo {
 
 int errorCode;
 
-#endif //IPC_XXXJEBACZMATEK2003XXX_H
+#endif //COMMON_H

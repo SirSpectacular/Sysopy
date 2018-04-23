@@ -1,21 +1,7 @@
 //
 // Created by student on 17.04.18.
 //
-
-#define _GNU_SOURCE
-
-#include <sys/types.h>
-#include <sys/msg.h>
-#include <sys/ipc.h>
-#include <stdio.h>
-#include <errno.h>
-#include <memory.h>
-#include <stdlib.h>
-#include <time.h>
-#include <sys/time.h>
-#include <fcntl.h>
-#include <signal.h>
-#include "xXxJebaczMatek2003xXx.h"
+#include "common.h"
 
 void cleanUp();
 void handleINT(int);
@@ -39,7 +25,6 @@ int main(int argc, char **argv) {
         printf("%s\n", strerror(errno));
         return -1;
     }
-
     while (1) {
         struct msgBuffer queryBuffer;
         struct msgBuffer responseBuffer;
@@ -49,10 +34,9 @@ int main(int argc, char **argv) {
             if (errno != ENOMSG) {
                 printf("%s s\n", strerror(errno));
                 return 1;
-            }
+            } else if (readyToExit == 1) exit(0);
         } else {
-
-            printf("Got query %s - msg %d - id %lo - type\n", queryBuffer.buffer, queryBuffer.id, queryBuffer.mtype);
+            printf("Got query: %s - msg,\t %d - id,\t %lo - type\n", queryBuffer.buffer == NULL ? "null" : queryBuffer.buffer, queryBuffer.id, queryBuffer.mtype);
             switch (queryBuffer.mtype) {
                 case REGISTERY:
                     errorCode = handleREGISTERY(queryBuffer, &responseBuffer);
@@ -80,9 +64,10 @@ int main(int argc, char **argv) {
                     handleTIME(queryBuffer, &responseBuffer);
                     break;
                 case END:
-                    exit(0);
+                    readyToExit = 1;
+                    continue;
                 default:
-                    break;
+                    continue;
             }
             responseBuffer.mtype = queryBuffer.mtype;
             errorCode = msgsnd(clientQids[queryBuffer.id], &responseBuffer, MSGBUF_RAW_SIZE, 0);

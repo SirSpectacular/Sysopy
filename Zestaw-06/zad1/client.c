@@ -1,15 +1,4 @@
-#define  _GNU_SOURCE
-
-#include <stdio.h>
-#include <sys/ipc.h>
-#include <sys/msg.h>
-#include <errno.h>
-#include <memory.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <signal.h>
-#include "xXxJebaczMatek2003xXx.h"
+#include "common.h"
 
 int initClient();
 int registerClient();
@@ -47,6 +36,7 @@ int main(int argc, char **argv) {
     char lineBuffer[MAX_LINE_SIZE];
     struct msgBuffer queryBuffer;
     struct msgBuffer responseBuffer;
+    char* operations[] = {"MIRROR", "ADD", "SUB", "MUL", "DIV", "TIME", "END"};
 
     while(fgets(lineBuffer, MAX_LINE_SIZE, inputFile)) {
         int isProperCmd = 0;
