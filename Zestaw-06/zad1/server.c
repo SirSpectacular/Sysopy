@@ -11,6 +11,7 @@ void handleMIRROR(struct msgBuffer, struct msgBuffer*);
 void handleCALC(struct msgBuffer, struct msgBuffer*, enum operationType);
 int stringToInt(int *dest, char *source);
 void handleTIME(struct msgBuffer, struct msgBuffer*);
+int handleQUIT(struct msgBuffer);
 
 key_t serverKey;
 int serverQid;
@@ -28,6 +29,7 @@ int main(int argc, char **argv) {
     while (1) {
         struct msgBuffer queryBuffer;
         struct msgBuffer responseBuffer;
+        int readyToExit;
 
         errorCode = (int) msgrcv(serverQid, &queryBuffer, MSGBUF_RAW_SIZE, 0, IPC_NOWAIT);
         if (errorCode == -1) {
@@ -66,6 +68,9 @@ int main(int argc, char **argv) {
                 case END:
                     readyToExit = 1;
                     continue;
+                case QUIT:
+                    handleQUIT(queryBuffer);
+                    continue;
                 default:
                     continue;
             }
@@ -103,12 +108,12 @@ int initServer(){
 }
 
 int handleREGISTERY(struct msgBuffer queryBuffer, struct msgBuffer *responseBuffer){
-    clientQids[clientCounter] = msgget(queryBuffer.key, S_IRWXU | S_IRWXG);
-    if (clientQids[clientCounter] == -1)
-        return -1;
-    responseBuffer->mtype = REGISTERY;
-    responseBuffer->id = clientCounter;
-    clientCounter++;
+        clientQids[clientCounter] = msgget(queryBuffer.key, S_IRWXU | S_IRWXG);
+        if (clientQids[clientCounter] == -1)
+            return -1;
+        responseBuffer->mtype = REGISTERY;
+        responseBuffer->id = clientCounter;
+        clientCounter++;
 }
 
 void handleMIRROR(struct msgBuffer queryBuffer, struct msgBuffer *responseBuffer){
@@ -124,7 +129,7 @@ void handleCALC(struct msgBuffer queryBuffer, struct msgBuffer *responseBuffer, 
     errorCode = stringToInt(&num1, strtok(queryBuffer.buffer, " \n\t"));
     errorCode |= stringToInt(&num2, strtok(NULL, " \n\t"));
     if (errorCode != 0 || strtok(NULL, " \n\t") != NULL)
-        sprintf(responseBuffer->buffer, "Wrong syntax of %s query from client no. %d\n",
+        sprintf(responseBuffer->buffer, "Wrong syntax of %s query from client no. %d",
                 (type == ADD) ? "ADD" :
                 (type == SUB) ? "SUB" :
                 (type == MUL) ? "MUL" :
@@ -149,7 +154,7 @@ int stringToInt(int *dest, char *source) {
 
 void handleTIME(struct msgBuffer queryBuffer, struct msgBuffer *responseBuffer) {
     if (*queryBuffer.buffer != '\0') {
-        sprintf(responseBuffer->buffer, "Wrong syntax of TIME query from client no. \n");
+        sprintf(responseBuffer->buffer, "Wrong syntax of TIME query from client no. %d", queryBuffer.id);
         return;
     }
     struct timeval timeBuffer;
@@ -159,3 +164,12 @@ void handleTIME(struct msgBuffer queryBuffer, struct msgBuffer *responseBuffer) 
     strftime(responseBuffer->buffer, sizeof(responseBuffer->buffer), "%Y-%m-%d %H:%M:%S", formatedTime);
 }
 
+int handleQUIT(struct msgBuffer queryBuffer){
+    if(msgctl(clientQids[queryBuffer.id], IPC_RMID, (struct msqid_ds *) NULL) == -1)
+        return -1;
+
+    for(int i = queryBuffer.id; i < clientCounter; i++)
+        clientQids[i] = clientQids[i+1];
+    clientCounter--;
+    return 0;
+}

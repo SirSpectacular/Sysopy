@@ -32,7 +32,8 @@ enum operationType{
     MUL,
     DIV,
     TIME,
-    END
+    END,
+    QUIT
 };
 
 
@@ -44,7 +45,6 @@ struct msgBuffer {
 };
 
 const size_t MSGBUF_RAW_SIZE = sizeof(struct msgBuffer) - sizeof(long);
-
 
 struct clientInfo {
     int qid;

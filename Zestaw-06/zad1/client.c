@@ -8,6 +8,11 @@ key_t serverKey, privateKey;
 
 void cleanUp(){
     msgctl(privateQid, IPC_RMID, (struct msqid_ds *) NULL);
+
+    struct msgBuffer queryBuffer;
+    queryBuffer.mtype = QUIT;
+
+    errorCode = msgsnd(serverQid, &queryBuffer, MSGBUF_RAW_SIZE, 0);
 }
 
 void handleINT(int sig){
@@ -50,11 +55,16 @@ int main(int argc, char **argv) {
                 ptr = strtok(NULL, "\n");
                 if(ptr != NULL) {
                     strcpy(queryBuffer.buffer, ptr);
+
                 }
                 else
                     queryBuffer.buffer[0] = '\0';
+                if(queryBuffer.buffer[0] != NULL && (queryBuffer.mtype == TIME || queryBuffer.mtype == END)){
+                    printf("Syntax of %s is incorrect\n", operations[i]);
+                    continue;
+                }
                 errorCode = msgsnd(serverQid, &queryBuffer, MSGBUF_RAW_SIZE, 0);
-                if (errorCode == -1 && errno != EAGAIN) {
+                if (errorCode == -1 && errno) {
                     printf("%s 8\n", strerror(errno));
                     return 1;
                 }
