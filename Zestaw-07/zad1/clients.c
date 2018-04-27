@@ -87,7 +87,7 @@ void clientRoutine(int semID){
     aquireSemaphore(semID);
     if(barbershop->barberStatus == ASLEEP) {
         printf("%lo: %d: Woke up the barber\n", getTimestamp(), myPID);
-        barbershop->barberStatus = AWAKEN;
+        barbershop->barberStatus = AWOKEN;
         claimChair();
         barbershop->barberStatus = BUSY;
         }

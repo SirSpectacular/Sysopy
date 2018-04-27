@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
                     barbershop->barberStatus = ASLEEP;
                 }
                 break;
-            case AWAKEN:
+            case AWOKEN:
                 printf("%lo: Woke up\n", getTimestamp());
                 barbershop->barberStatus = READY;
                 break;
