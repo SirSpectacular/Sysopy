@@ -7,3 +7,20 @@ SET( CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} ${GCC_COVERAGE_LINK_FLAG
 add_executable(threads main.c)
 add_executable(gen_input gen_input.c)
 add_executable(gen_filter gen_filter.c)
+add_executable(clear clear.c)
+
+enable_testing()
+
+add_test(clearing clear)
+add_test(testGenInput gen_input 512 512 ./input)
+foreach(loop_var 4 8 16 32 64)
+
+    set(filterFileName "./res/filter_${loop_var}")
+    set(testGenFilter "testGenFilter_${loop_var}")
+    add_test(${testGenFilter}  gen_filter ${loop_var} 32 ${filterFileName})
+    foreach(loop_var2 1 2 4 8)
+        set(outputFileName "./out/output_${loop_var}_${loop_var2}")
+        set(testThreads "testThreads_${loop_var}_${loop_var2}")
+        add_test(${testThreads} threads ${loop_var2} ./input ${filterFileName} ${outputFileName})
+    endforeach(loop_var2)
+endforeach(loop_var)

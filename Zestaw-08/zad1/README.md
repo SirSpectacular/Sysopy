@@ -1,3 +1,5 @@
+U need CMake to build this project.
+
 To run this program type:
 >./threads W X Y Z
 >
@@ -8,6 +10,11 @@ To run this program type:
 >Y - name of filter file
 >
 >Z - name of output file
+
+To run tests:
+>make test
+
+Results can be seen in ./out directory
 
 to generate input image type:
 >./gen_input X Y Z

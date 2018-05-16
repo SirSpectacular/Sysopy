@@ -1,2 +1,100 @@
+Input file size:		512 x 512
+Filter size:			4
+Amount of threads:		1
+Real time:				0.154337 sec
 
+Input file size:		512 x 512
+Filter size:			4
+Amount of threads:		2
+Real time:				0.077074 sec
+
+Input file size:		512 x 512
+Filter size:			4
+Amount of threads:		4
+Real time:				0.042561 sec
+
+Input file size:		512 x 512
+Filter size:			4
+Amount of threads:		8
+Real time:				0.050013 sec
+
+Input file size:		512 x 512
+Filter size:			8
+Amount of threads:		1
+Real time:				0.670320 sec
+
+Input file size:		512 x 512
+Filter size:			8
+Amount of threads:		2
+Real time:				0.288782 sec
+
+Input file size:		512 x 512
+Filter size:			8
+Amount of threads:		4
+Real time:				0.150659 sec
+
+Input file size:		512 x 512
+Filter size:			8
+Amount of threads:		8
+Real time:				0.149119 sec
+
+Input file size:		512 x 512
+Filter size:			16
+Amount of threads:		1
+Real time:				2.314859 sec
+
+Input file size:		512 x 512
+Filter size:			16
+Amount of threads:		2
+Real time:				1.168216 sec
+
+Input file size:		512 x 512
+Filter size:			16
+Amount of threads:		4
+Real time:				0.596350 sec
+
+Input file size:		512 x 512
+Filter size:			16
+Amount of threads:		8
+Real time:				0.593571 sec
+
+Input file size:		512 x 512
+Filter size:			32
+Amount of threads:		1
+Real time:				9.434066 sec
+
+Input file size:		512 x 512
+Filter size:			32
+Amount of threads:		2
+Real time:				4.541572 sec
+
+Input file size:		512 x 512
+Filter size:			32
+Amount of threads:		4
+Real time:				2.341928 sec
+
+Input file size:		512 x 512
+Filter size:			32
+Amount of threads:		8
+Real time:				2.348786 sec
+
+Input file size:		512 x 512
+Filter size:			64
+Amount of threads:		1
+Real time:				37.449697 sec
+
+Input file size:		512 x 512
+Filter size:			64
+Amount of threads:		2
+Real time:				18.552455 sec
+
+Input file size:		512 x 512
+Filter size:			64
+Amount of threads:		4
+Real time:				9.466583 sec
+
+Input file size:		512 x 512
+Filter size:			64
+Amount of threads:		8
+Real time:				9.387832 sec
 
