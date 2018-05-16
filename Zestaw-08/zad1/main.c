@@ -6,8 +6,10 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/time.h>
+
 //TODO: errorCode
-//TODO: Consider macros in parser
+//TODO: Some tests
+
 #define MAX_IMG_SIZE 10000
 #define MAX_FILTER_SIZE 1000
 #define STAT_FILE_NAME "./Times.txt"
@@ -18,20 +20,20 @@ void saveOutput(FILE*);
 void* threadsRoutine(void*);
 void filterPixel(u_int8_t*, int, int);
 int max(int, int);
-void saveStats(struct timeval);
+void gatherStats(struct timeval);
+
+int errorCode;
 
 u_int8_t inputImgBuffer[MAX_IMG_SIZE][MAX_IMG_SIZE];
 u_int8_t outputImgBuffer[MAX_IMG_SIZE][MAX_IMG_SIZE];
 double filterBuffer[MAX_FILTER_SIZE][MAX_FILTER_SIZE];
-
 int amountOfThreads;
 
 int imgWidth = -1;
 int imgHeight = -1;
 int filterSize = -1;
 
-
-typedef struct threadInfo{
+struct threadInfo{
     pthread_t threadID;
     int threadNum;
 };
@@ -48,8 +50,8 @@ int main(int argc, char** argv) {
 
     char *dump;
     amountOfThreads = (int) strtol(argv[1], &dump, 10);
-    if (*dump != '\0') {
-        printf("Incorrect format of 1-st argument, should be unsigned integer\n");
+    if (*dump != '\0' || amountOfThreads < 1) {
+        printf("Incorrect format of 1-st argument, should be integer greater then 0\n");
         exit(EXIT_FAILURE);
     }
 
@@ -60,20 +62,20 @@ int main(int argc, char** argv) {
 
     FILE *inputFile = fopen(inputImgFileName, "r");
     if (inputFile == NULL) {
-        printf("%s", strerror(errno));
+        printf("Input file: %s", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
 
     FILE *filterFile = fopen(filterFileName, "r");
     if (filterFile == NULL) {
-        printf("%s", strerror(errno));
+        printf("Filter file: %s", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
     FILE* outputFile = fopen(outputImgFileName, "w");
     if (outputFile == NULL) {
-        printf("%s", strerror(errno));
+        printf("Output file: %s", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
@@ -82,8 +84,6 @@ int main(int argc, char** argv) {
 
     struct threadInfo *tInfo;
     struct timeval startTime;
-
-
     tInfo = malloc(sizeof(*tInfo) * amountOfThreads);
     gettimeofday(&startTime, NULL);
 
@@ -95,7 +95,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < amountOfThreads; i++)
         pthread_join(tInfo[i].threadID, NULL);
 
-    saveStats(startTime);
+    gatherStats(startTime);
     saveOutput(outputFile);
 
     fclose(inputFile);
@@ -104,20 +104,38 @@ int main(int argc, char** argv) {
     free(tInfo);
 }
 
-void parseInput(FILE* file) { //TODO: header obtained by getline
-    int maxPixelValue;
-    fscanf(file, "P2\n %d %d\n%d\n", &imgWidth, &imgHeight, &maxPixelValue);
-    if (imgWidth < 1 || imgHeight < 1 || maxPixelValue != 255) {
+void parseInput(FILE* file) {
+    char stringBuffer[16];
+    long numBuffer;
+    char *dump;
+
+    fscanf(file, "%s", stringBuffer);
+    if(strcmp("P2", stringBuffer) != 0)
+        errorCode = -1;
+
+    fscanf(file, "%s", stringBuffer);
+    imgWidth = (int)strtol(stringBuffer, &dump, 10);
+    if (*dump != '\0' || imgWidth < 1 || imgWidth >= MAX_IMG_SIZE)
+        errorCode = -1;
+
+    fscanf(file, "%s", stringBuffer);
+    imgHeight= (int)strtol(stringBuffer, &dump, 10);
+    if (*dump != '\0' || imgHeight < 1 || imgHeight >= MAX_IMG_SIZE)
+        errorCode = -1;
+
+    fscanf(file, "%s", stringBuffer);
+    numBuffer = strtol(stringBuffer, &dump, 10);
+    if (*dump != '\0' || numBuffer != 255)
+        errorCode = -1;
+
+   if(errorCode == -1){
         printf("Wrong format of input file header");
         exit(EXIT_FAILURE);
-    }
+   }
 
-    char stringBuffer[8];
-    long numBuffer;
     for (int i = 0; i < imgHeight; i++) {
         for (int j = 0; j < imgWidth; j++) {
             fscanf(file, "%s", stringBuffer);
-            char *dump;
             numBuffer = strtol(stringBuffer, &dump, 10);
             if (*dump != '\0' || numBuffer < 0 || numBuffer > 255) {
                 printf("Wrong format of input file, cell [%d][%d]", i + 1, j + 1);
@@ -129,14 +147,14 @@ void parseInput(FILE* file) { //TODO: header obtained by getline
 }
 
 
-void parseFilter(FILE* file) { //TODO: header obtained by getline
-    char stringBuffer[16];
+void parseFilter(FILE* file) {
+    char stringBuffer[64];
     double numBuffer;
     char *dump;
 
     fscanf(file, "%s", stringBuffer);
     filterSize = (int)strtol(stringBuffer, &dump, 10);
-    if (*dump != '\0' || filterSize < 1) {
+    if (*dump != '\0' || filterSize < 1 || filterSize >= MAX_FILTER_SIZE) {
         printf("Wrong format of filter file header");
         exit(EXIT_FAILURE);
     }
@@ -179,11 +197,13 @@ void* threadsRoutine(void* argBuf){
     return 0;
 }
 
-void filterPixel(u_int8_t *pixelValue, int x, int y) { //TODO: Does it rly work?
+void filterPixel(u_int8_t *pixelValue, int x, int y) {
     double newVal = 0.0;
     for(int i = 0; i < filterSize; i++) {
         for(int j = 0; j < filterSize; j++) {
-            newVal += inputImgBuffer[max(0, (x ) - (int)ceil((double)filterSize / 2) + (i ))][max(0, (y ) - (int)ceil((double)filterSize / 2) + (j ))] * filterBuffer[i][j];
+            newVal += inputImgBuffer[max(1, (x + 1) - (int)ceil((double)filterSize / 2.0) + (i + 1)) - 1]
+                                    [max(1, (y + 1) - (int)ceil((double)filterSize / 2.0) + (j + 1)) - 1]
+                      * filterBuffer[i][j];
         }
     }
     newVal = round(newVal);
@@ -194,7 +214,7 @@ inline int max(int a, int b){
     return a > b ? a : b;
 }
 
-void saveStats(struct timeval startTime){
+void gatherStats(struct timeval startTime){
     struct timeval endTime;
     gettimeofday(&endTime, NULL);
 

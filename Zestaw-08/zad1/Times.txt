@@ -1,5 +1,2 @@
-Input file size:		5 x 3
-Filter size:			2
-Amount of threads:		3
-Real time:				0.000115 sec
+
 
