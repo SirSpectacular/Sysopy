@@ -29,17 +29,15 @@
 
 enum barberStatus{
     ASLEEP,
-    AWAKEN,
-    READY,
+    AWOKEN,
+    WAIT,
     IDLE,
     BUSY
 };
 
 enum clientStatus{
     NEWCOMER,
-    //ENQUEUED
     INVITED,
-    //SERVED
     SHAVED
 };
 

@@ -6,26 +6,20 @@
 // Created by student on 24.04.18.
 //
 int initClients(int*, int*, int, char**);
-void clientRoutine(sem_t*);
+int clientRoutine(sem_t*);
 void aquireSemaphore(sem_t*);
 void releaseSemaphore(sem_t*);
 void claimChair();
 void enterQueue();
 int isQueueFull();
 enum clientStatus updateStatus();
+long getTimestamp();
 
 pid_t myPID;
 enum clientStatus myStatus;
 int shmID;
 sem_t *semID;
 int errorCode;
-
-long getTimestamp(){
-    struct timespec buf;
-    clock_gettime(CLOCK_MONOTONIC, &buf);
-    return buf.tv_nsec / 1000;
-}
-
 
 int main(int argc, char **argv){
     int amountOfClients;
@@ -39,8 +33,9 @@ int main(int argc, char **argv){
     for(int i = 0; i < amountOfClients; i++) {
         if(!(fork())) {
             myPID = getpid();
-            for (int j = 0; j < S; j++) {
-                clientRoutine(semID);
+            int count = 0;
+            while(count < S){
+                count += clientRoutine(semID);
             }
             exit(0);
         }
@@ -77,13 +72,13 @@ int initClients(int *amountOfClients, int *S, int argc, char **argv){
 
 }
 
-void clientRoutine(sem_t *semID){
+int clientRoutine(sem_t *semID){
     myStatus = NEWCOMER;
 
     aquireSemaphore(semID);
     if(barbershop->barberStatus == ASLEEP) {
         printf("%lo: %d: Woke up the barber\n", getTimestamp(), myPID);
-        barbershop->barberStatus = AWAKEN;
+        barbershop->barberStatus = AWOKEN;
         claimChair();
         barbershop->barberStatus = BUSY;
         }
@@ -93,9 +88,9 @@ void clientRoutine(sem_t *semID){
             printf("%lo: %d: Entered the queue\n", getTimestamp(), myPID);
         }
         else {
-            printf("%lo: %d: There was no enough space in the queue\n", getTimestamp(), myPID);
+            printf("%lo: %d: There was not enough space in the queue\n", getTimestamp(), myPID);
             releaseSemaphore(semID);
-            return;
+            return 0;
         }
     }
     releaseSemaphore(semID);
@@ -111,10 +106,13 @@ void clientRoutine(sem_t *semID){
 
     while(myStatus < SHAVED) {
         aquireSemaphore(semID);
-        if((myStatus = updateStatus()) == SHAVED)
-            printf("%lo: %d: Shaved\n", getTimestamp(), myPID);
+        if((myStatus = updateStatus()) == SHAVED){
+            printf("%lo: %d: Got shaved and left\n", getTimestamp(), myPID);
+            barbershop->barberStatus = IDLE;
+        }
         releaseSemaphore(semID);
     }
+    return 1;
 }
 
 enum clientStatus updateStatus(){
@@ -136,7 +134,7 @@ void claimChair(){
         while (1) {
             releaseSemaphore(semID);
             aquireSemaphore(semID);
-            if (barbershop->barberStatus == READY)
+            if (barbershop->barberStatus == WAIT)
                 break;
         }
         myStatus = INVITED;
@@ -182,4 +180,10 @@ void enterQueue(){
         barbershop->lastClientIndex++;
 
     barbershop->queue[barbershop->lastClientIndex] = myPID;
+}
+
+long getTimestamp(){
+    struct timespec buf;
+    clock_gettime(CLOCK_MONOTONIC, &buf);
+    return buf.tv_nsec / 1000;
 }

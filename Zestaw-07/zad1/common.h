@@ -26,7 +26,7 @@
 enum barberStatus{
     ASLEEP,
     AWOKEN,
-    READY,
+    WAIT,
     IDLE,
     BUSY
 };

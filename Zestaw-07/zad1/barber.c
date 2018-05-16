@@ -19,26 +19,9 @@ int initBarbershop(int);
 int isQueueEmpty();
 void inviteClient();
 void serveClient(int);
-
-
-void handleSIGTERM(int sig){
-    exit(0);
-}
-
-void cleanUp() {
-    if(semID != 0) {
-        semctl(semID, 0, IPC_RMID);
-    }
-    if(shmID != 0){
-        shmctl(shmID, IPC_RMID, NULL);
-    }
- }
-
-long getTimestamp(){
-    struct timespec buf;
-    clock_gettime(CLOCK_MONOTONIC, &buf);
-    return buf.tv_nsec / 1000;
-}
+void handleSIGTERM(int);
+void cleanUp();
+long getTimestamp();
 
 int main(int argc, char **argv) {
     int watingRoomSize;
@@ -60,7 +43,7 @@ int main(int argc, char **argv) {
             case IDLE:
                 if (!isQueueEmpty()) {
                     inviteClient();
-                    barbershop->barberStatus = READY;
+                    barbershop->barberStatus = WAIT;
                 }
                 else {
                     printf("%lo: Fell asleep\n", getTimestamp());
@@ -69,11 +52,11 @@ int main(int argc, char **argv) {
                 break;
             case AWOKEN:
                 printf("%lo: Woke up\n", getTimestamp());
-                barbershop->barberStatus = READY;
+                barbershop->barberStatus = WAIT;
                 break;
             case BUSY:
                 serveClient(semID);
-                barbershop->barberStatus = IDLE;
+                barbershop->barberStatus = WAIT;
                 break;
             default:
                 break;
@@ -116,7 +99,7 @@ int initBarber(int *waitingRoomSize, int argc, char **argv){
 
     char *dump;
     *waitingRoomSize = (int) strtol(argv[1], &dump, 10);
-    if (*dump != '\0' || *waitingRoomSize > MAX_QUEUE_SIZE)
+    if (*dump != '\0' || *waitingRoomSize > MAX_QUEUE_SIZE || *watingRoomSize < 1)
         return -1;
 
     signal(SIGTERM, handleSIGTERM);
@@ -176,4 +159,21 @@ void serveClient(int semID){
     barbershop->selectedClient = 0;
 }
 
+void handleSIGTERM(int sig){
+    exit(0);
+}
 
+void cleanUp() {
+    if(semID != 0) {
+        semctl(semID, 0, IPC_RMID);
+    }
+    if(shmID != 0){
+        shmctl(shmID, IPC_RMID, NULL);
+    }
+ }
+
+long getTimestamp(){
+    struct timespec buf;
+    clock_gettime(CLOCK_MONOTONIC, &buf);
+    return buf.tv_nsec / 1000;
+}
