@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <memory.h>
+#include <errno.h>
 
 int doubleComparator(const void* p1, const void *p2){
     if(*(double*)p1 > *(double*)p2) return 1;
@@ -13,10 +15,23 @@ int doubleComparator(const void* p1, const void *p2){
 }
 
 int main(int argc, char **argv){
-    //1. Size 2. Precision 3.FileName
-    size_t filterSize = (size_t)strtol(argv[1], NULL, 10);
-    int precision = (int)strtol(argv[2], NULL, 10);
+    //Args: 1. Size 2. Precision 3.FileName
+    char *dump;
+    size_t filterSize = (size_t)strtol(argv[1], &dump, 10);
+    if (*dump != '\0' || filterSize < 1) {
+        printf("Wrong format of cmd line arguments");
+        exit(EXIT_FAILURE);
+    }
+    int precision = (int)strtol(argv[2], &dump, 10);
+    if (*dump != '\0' || precision < 1) {
+        printf("Wrong format of cmd line arguments");
+        exit(EXIT_FAILURE);
+    }
     FILE * file = fopen(argv[3], "w");
+    if(file == NULL){
+        printf("Was unable to open file: %s", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
 
     srand48(time(NULL));
     size_t X = filterSize * filterSize;
@@ -36,5 +51,6 @@ int main(int argc, char **argv){
         fprintf(file, "\n");
     }
     fclose(file);
+    free(numBuffer);
 }
 
