@@ -8,7 +8,6 @@
 #include <sys/time.h>
 
 //TODO: errorCode
-//TODO: Some tests
 
 #define MAX_IMG_SIZE 10000
 #define MAX_FILTER_SIZE 1000
@@ -20,6 +19,7 @@ void saveOutput(FILE*);
 void* threadsRoutine(void*);
 void filterPixel(u_int8_t*, int, int);
 int max(int, int);
+int min(int, int);
 void gatherStats(struct timeval);
 
 int errorCode;
@@ -201,8 +201,8 @@ void filterPixel(u_int8_t *pixelValue, int x, int y) {
     double newVal = 0.0;
     for(int i = 0; i < filterSize; i++) {
         for(int j = 0; j < filterSize; j++) {
-            newVal += inputImgBuffer[max(1, (x + 1) - (int)ceil((double)filterSize / 2.0) + (i + 1)) - 1]
-                                    [max(1, (y + 1) - (int)ceil((double)filterSize / 2.0) + (j + 1)) - 1]
+            newVal += inputImgBuffer[min(imgHeight, max(1, (x + 1) - (int)ceil((double)filterSize / 2.0) + (i + 1))) - 1]
+                                    [min(imgWidth, max(1, (y + 1) - (int)ceil((double)filterSize / 2.0) + (j + 1))) - 1]
                       * filterBuffer[i][j];
         }
     }
@@ -212,6 +212,9 @@ void filterPixel(u_int8_t *pixelValue, int x, int y) {
 
 inline int max(int a, int b){
     return a > b ? a : b;
+}
+inline int min(int a, int b){
+    return a < b ? a : b;
 }
 
 void gatherStats(struct timeval startTime){
