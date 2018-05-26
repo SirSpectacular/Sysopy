@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <memory.h>
 #include <pthread.h>
+#include <unistd.h>
 
 #define RED_COLOR "\e[1;31m"
 #define RESET_COLOR "\e[0m"
@@ -14,7 +15,7 @@
 #define FAILURE_EXIT(msg, ...) {                            \
     printf(RED_COLOR msg RESET_COLOR, ##__VA_ARGS__);       \
     exit(EXIT_FAILURE);                                     }
-int errorCode;
+int errorCode = 0;
 
 struct procProperties {
     size_t amountOfProducers;                     //P
@@ -26,7 +27,7 @@ struct procProperties {
     int (*compareFunction)(char*);                //mode of searching
 
     int displayMode;
-    int workMode;                                 //nk
+    int nk;
 } properties;
 
 char **theBuffer;
@@ -34,11 +35,11 @@ int currentProducer;
 int currentConsumer;
 
 pthread_mutex_t* cellMutexes;
-pthread_mutex_t pointerMutex;
-pthread_mutex_t fileMutex;
+pthread_mutex_t pointerMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t fileMutex = PTHREAD_MUTEX_INITIALIZER;
 
-pthread_cond_t notFull;
-pthread_cond_t notEmpty;
+pthread_cond_t notFull = PTHREAD_COND_INITIALIZER;
+pthread_cond_t notEmpty = PTHREAD_COND_INITIALIZER;
 
 void initProgram(char*);
 void cleanUpProgram();
@@ -67,7 +68,9 @@ int main(int argc, char **argv) {
     for(int i = 0; i < properties.amountOfConsumers; i++)
         pthread_create(&consumers[i], NULL, consumersRoutine, NULL);
 
-
+    if(properties.nk > 0) {
+        sleep((unsigned int) properties.nk);
+    }
     cleanUpProgram();
     return 0;
 }
@@ -122,8 +125,8 @@ void initProgram(char *propertiesFilename) {
     if (errorCode != 0 || (properties.displayMode != 1 && properties.displayMode != 0)) //TODO: Read from string
         FAILURE_EXIT("Was unable to read argument from properties file: 7")
 
-    errorCode = intFromFile(propertiesFile, &properties.workMode);
-    if (errorCode != 0 || properties.workMode < 0)
+    errorCode = intFromFile(propertiesFile, &properties.nk);
+    if (errorCode != 0 || properties.nk < 0)
         FAILURE_EXIT("Was unable to read argument from properties file: 8")
 
     fclose(propertiesFile);
@@ -142,19 +145,13 @@ void initProgram(char *propertiesFilename) {
         if(errorCode != 0)
             FAILURE_EXIT("Was unable to setup mutexes: %s", strerror(errno))
     }
-    pthread_mutex_t pointerMutex = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_t fileMutex = PTHREAD_MUTEX_INITIALIZER;
-
-    //CONDITION VARIABLES
-    pthread_cond_t full = PTHREAD_COND_INITIALIZER;
-    pthread_cond_t empty = PTHREAD_COND_INITIALIZER;
 }
 
 int intFromFile(FILE *file, int *out) {
     char buffer[16];
     char *dump;
     errorCode = fscanf(file, "%s", buffer);
-    if(errorCode != 0)
+    if(errorCode != 1)
         return -1;
     *out = (int)strtol(buffer, &dump, 10);
     if(*dump != '\0')
@@ -165,7 +162,7 @@ int intFromFile(FILE *file, int *out) {
 int wordFromFile(FILE *file, char **out) {
     char buffer[4096];
     errorCode = fscanf(file, "%s", buffer);
-    if(errorCode != 0)
+    if(errorCode != 1)
         return -1;
     *out = malloc(sizeof(char)*strlen(buffer));
     if(*out == NULL)
@@ -189,16 +186,38 @@ int stringShorter(char *str) {
     return strlen(str) < properties.compareValue ? 1 : 0;
 }
 
+void* producersRoutine(void* args){
+    int index;
+    char lineBuffer[MAX_LINE_LEN];
+    while(1){
+        pthread_mutex_lock(&pointerMutex);
+        index = getPIndex();
+        pthread_mutex_lock(&cellMutexes[index]);
+        pthread_mutex_unlock(&pointerMutex);
+
+        pthread_mutex_lock(&fileMutex);
+        if(fgets(lineBuffer, MAX_LINE_LEN, properties.inputFile) == NULL) //I used static buffer, and fgets() instead of getline(), because I want producers to hold file for as little time as possible.
+            lineBuffer[0] = 0;
+        pthread_mutex_unlock(&fileMutex);
+
+        theBuffer[index] = malloc(sizeof(char) * (strlen(lineBuffer) + 1));
+        strcpy(theBuffer[index], lineBuffer);
+        pthread_mutex_unlock(&cellMutexes[index]);
+    }
+}
+
 void* consumersRoutine(void* args) {
     int index;
-    pthread_mutex_lock(&pointerMutex);
-    index = getCIndex();
-    while (1) {
+
+    while(1){
+        pthread_mutex_lock(&pointerMutex);
+        index = getCIndex();
         pthread_mutex_lock(&cellMutexes[index]);
         pthread_mutex_unlock(&pointerMutex);
 
         if (properties.compareFunction(theBuffer[index])) {
-            printf("[%d]: \"%s\"", index, theBuffer[index]);
+
+            printf("[%d]: %s", index, theBuffer[index]);
         }
         free(theBuffer[index]);
         theBuffer[index] = NULL;
@@ -207,27 +226,6 @@ void* consumersRoutine(void* args) {
     }
 }
 
-void* producersRoutine(void* args){
-    int index;
-    size_t n;
-    char lineBuffer[MAX_LINE_LEN];
-    while(1) {
-        pthread_mutex_lock(&pointerMutex);
-        index = getPIndex();
-        pthread_mutex_lock(&cellMutexes[index]);
-        pthread_mutex_unlock(&pointerMutex);
-
-        pthread_mutex_lock(&fileMutex);
-        fgets(lineBuffer, MAX_LINE_LEN,
-              properties.inputFile); //I used static buffer, and fgets() instead of getline(), because I want producers to hold file for as little time as possible.
-        pthread_mutex_unlock(&fileMutex);
-
-        theBuffer[index] = malloc(sizeof(char) * strlen(lineBuffer));
-        strcpy(theBuffer[index], lineBuffer);
-
-        pthread_mutex_unlock(&cellMutexes[index]);
-    }
-}
 
 int getPIndex(){
     while(currentProducer + 1 == currentConsumer || (currentProducer == properties.sizeOfBuffer - 1 && currentConsumer == 0)) //while is full
