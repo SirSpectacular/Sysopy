@@ -11,6 +11,8 @@
 #include <sys/time.h>
 #include <bits/sigthread.h>
 #include <signal.h>
+#include <semaphore.h>
+#include <fcntl.h>
 
 #define RED_COLOR "\e[1;31m"
 #define RESET_COLOR "\e[0m"
@@ -32,7 +34,7 @@ struct procProperties {
     int (*compareFunction)(char*);                //mode of searching
 
     int displayMode;
-    int timer;
+    int timer;                                    //nk
 } properties;
 
 char **theBuffer;
@@ -41,12 +43,9 @@ int currentConsumer;
 
 int reachedEOF = 0;
 
-pthread_mutex_t* cellMutexes;
-pthread_mutex_t supervisorMutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t outMutex = PTHREAD_MUTEX_INITIALIZER;
-
-pthread_cond_t notFull = PTHREAD_COND_INITIALIZER;
-pthread_cond_t notEmpty = PTHREAD_COND_INITIALIZER;
+sem_t *cellMutexes;
+sem_t supervisorMutex;
+sem_t outMutex;
 
 pthread_t mainThreadId;
 pthread_t *producers;
@@ -63,6 +62,8 @@ void* producersRoutine(void*);
 void* consumersRoutine(void*);
 int getPIndex();
 int getCIndex();
+void aquireSemaphore(sem_t*);
+void releaseSemaphore(sem_t*);
 
 //========================================================================================================================
 
@@ -86,6 +87,7 @@ int main(int argc, char **argv) {
         act.sa_flags = 0;
         sigaction(SIGINT, &act, NULL);
     }
+    atexit(cleanUpProgram);
 
     producers = malloc(sizeof(pthread_t) * properties.amountOfProducers);
     consumers = malloc(sizeof(pthread_t) * properties.amountOfConsumers);
@@ -97,8 +99,8 @@ int main(int argc, char **argv) {
         pthread_create(&consumers[i], NULL, consumersRoutine, NULL);
 
     if(properties.timer > 0) {
-        sleep(properties.timer);
-        pthread_mutex_lock(&outMutex);
+        sleep((unsigned int)properties.timer);
+        aquireSemaphore(&outMutex);
         for(int i = 0; i < properties.amountOfProducers; i++)
             pthread_cancel(producers[i]);
 
@@ -107,7 +109,6 @@ int main(int argc, char **argv) {
     } else
         while(1){pause();};
 
-    cleanUpProgram();
     return 0;
 }
 
@@ -175,12 +176,21 @@ void initProgram(char *propertiesFilename) {
     currentProducer = -1;
 
     //MUTEXES
-    cellMutexes = malloc(sizeof(pthread_mutex_t) * properties.sizeOfBuffer);
+    cellMutexes = malloc(sizeof(sem_t) * properties.sizeOfBuffer);
     for(int i = 0; i < properties.sizeOfBuffer; i++) {
-        errorCode = pthread_mutex_init(&cellMutexes[i], NULL);
+        errorCode = sem_init(&cellMutexes[i], 0, 1);
         if(errorCode != 0)
             FAILURE_EXIT("Was unable to setup mutexes: %s", strerror(errno))
     }
+
+    errorCode = sem_init(&outMutex, 0, 1);
+    if(errorCode != 0)
+    FAILURE_EXIT("Was unable to setup mutexes: %s", strerror(errno))
+
+    errorCode = sem_init(&supervisorMutex, 0, 1);
+    if(errorCode != 0)
+    FAILURE_EXIT("Was unable to setup mutexes: %s", strerror(errno))
+
     //MAIN THREAD ID
     mainThreadId = pthread_self();
 }
@@ -212,6 +222,15 @@ int wordFromFile(FILE *file, char **out) {
 void cleanUpProgram() {
     free(theBuffer);
     fclose(properties.inputFile);
+
+
+    cellMutexes = malloc(sizeof(sem_t*) * properties.sizeOfBuffer);
+    for(int i = 0; i < properties.sizeOfBuffer; i++) {
+        sem_destroy(&cellMutexes[i]);
+    }
+
+    sem_destroy(&outMutex);
+    sem_destroy(&supervisorMutex);
 }
 
 int stringLonger(char *str) {
@@ -234,7 +253,7 @@ void* producersRoutine(void* args){
 
         if(properties.displayMode) printf("%lo Producer: Unlocked file mutex\n", myId);*/
 
-        pthread_mutex_lock(&supervisorMutex);
+        aquireSemaphore(&supervisorMutex);
         if(properties.displayMode) printf("%lo Producer: Locked pointer mutex\n", myId);
         index = getPIndex();
         if(properties.displayMode) printf("%lo Producer: Computed my place to work at: %d\n", myId, index);
@@ -243,16 +262,16 @@ void* producersRoutine(void* args){
             if(properties.displayMode) printf("%lo Producer: Reached EOF\n", myId);
             if (properties.timer == 0) reachedEOF = 1;
             currentProducer--;
-            pthread_mutex_unlock(&supervisorMutex);
+            releaseSemaphore(&supervisorMutex);
             if(properties.displayMode) printf("%lo Producer: Unlocked pointer mutex\n", myId);
             pause();
         }
         if(properties.displayMode) printf("%lo Producer: Read line from file\n", myId);
 
-        pthread_mutex_lock(&cellMutexes[index]);
+        aquireSemaphore(&cellMutexes[index]);
         if(properties.displayMode) printf("%lo Producer: Locked cell[%d] mutex\n", myId, index);
 
-        pthread_mutex_unlock(&supervisorMutex);
+        releaseSemaphore(&supervisorMutex);
         if(properties.displayMode) printf("%lo Producer: Unlocked pointer mutex\n", myId);
 
         theBuffer[index] = malloc(sizeof(char) * (strlen(lineBuffer) + 1));
@@ -260,7 +279,7 @@ void* producersRoutine(void* args){
         lineBuffer[0] = 0;
         if(properties.displayMode) printf("%lo Producer: Allocated line in the buffer\n", myId);
 
-        pthread_mutex_unlock(&cellMutexes[index]);
+        releaseSemaphore(&cellMutexes[index]);
         if(properties.displayMode) printf("%lo Producer: Unlocked cell[%d] mutex\n", myId, index);
     }
 }
@@ -270,41 +289,40 @@ void* consumersRoutine(void* args) {
     pthread_t myId = pthread_self();
 
     while(1){
-        pthread_mutex_lock(&supervisorMutex);
+        aquireSemaphore(&supervisorMutex);
         if(properties.displayMode) printf("%lo Consumer: Locked pointer mutex\n", myId);
 
         index = getCIndex();
         if(properties.displayMode) printf("%lo Consumer: Computed my place to work at: %d\n", myId, index);
-        pthread_mutex_lock(&cellMutexes[index]);
+        aquireSemaphore(&cellMutexes[index]);
         if(properties.displayMode) printf("%lo Consumer: Locked cell[%d] mutex\n", myId, index);
 
-        pthread_mutex_unlock(&supervisorMutex);
+        releaseSemaphore(&supervisorMutex);
         if(properties.displayMode) printf("%lo Consumer: Unlocked pointer mutex\n", myId);
 
         if (properties.compareFunction(theBuffer[index])) {
             if(theBuffer[index][strlen(theBuffer[index]) - 1] == '\n')
                 theBuffer[index][strlen(theBuffer[index]) - 1] = '\0';
-            pthread_mutex_lock(&outMutex);
+            aquireSemaphore(&outMutex);
             printf("[%d]: \"%s\"\n", index, theBuffer[index]);
-            pthread_mutex_unlock(&outMutex);
+            releaseSemaphore(&outMutex);
         }
         free(theBuffer[index]);
         theBuffer[index] = NULL;
         if(properties.displayMode) printf("%lo Consumer: Freed line in the buffer\n", myId);
         if(properties.timer == 0 && reachedEOF == 1 && currentConsumer == currentProducer) pthread_kill(mainThreadId, SIGINT);
 
-        pthread_mutex_unlock(&cellMutexes[index]);
+        releaseSemaphore(&cellMutexes[index]);
         if(properties.displayMode) printf("%lo Consumer: Unlocked cell[%d] mutex\n", myId, index);
     }
 }
 
 
 int getPIndex(){
-
-    while(currentProducer + 1 == currentConsumer || (currentProducer == properties.sizeOfBuffer - 1 && (currentConsumer == 0 || currentConsumer == -1))) //while is full
-        pthread_cond_wait(&notFull, &supervisorMutex);
-    if(currentConsumer == currentProducer)
-        pthread_cond_broadcast(&notEmpty);
+    while(currentProducer + 1 == currentConsumer || (currentProducer == properties.sizeOfBuffer - 1 && (currentConsumer == 0 || currentConsumer == -1))) { //while is full
+        releaseSemaphore(&supervisorMutex);
+        aquireSemaphore(&supervisorMutex);
+    }
 
     if(currentProducer == properties.sizeOfBuffer - 1)
         currentProducer = 0;
@@ -314,13 +332,11 @@ int getPIndex(){
 }
 
 int getCIndex(){
-
     while(currentConsumer == currentProducer) {// while is empty
-        pthread_cond_wait(&notEmpty, &supervisorMutex);
+        releaseSemaphore(&supervisorMutex);
+        aquireSemaphore(&supervisorMutex);
         if(properties.timer == 0 && reachedEOF == 1) pthread_kill(mainThreadId, SIGINT);
     }
-    if(currentProducer + 1 == currentConsumer || (currentProducer == properties.sizeOfBuffer - 1 && currentConsumer == 0))
-        pthread_cond_broadcast(&notFull);
 
     if(currentConsumer == properties.sizeOfBuffer - 1)
         currentConsumer = 0;
@@ -328,4 +344,20 @@ int getCIndex(){
         currentConsumer++;
     return currentConsumer;
 
+}
+
+void aquireSemaphore(sem_t *semID){
+    errorCode = sem_wait(semID);
+    if (errorCode == -1) {
+        printf("%s 3\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+}
+
+void releaseSemaphore(sem_t *semID){
+    errorCode = sem_post(semID);
+    if (errorCode == -1) {
+        printf("%s 4\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
 }
