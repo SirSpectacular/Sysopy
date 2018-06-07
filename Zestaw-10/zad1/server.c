@@ -1,77 +1,43 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <netinet/in.h>
-#include <pthread.h>
-#include <errno.h>
-#include <sys/epoll.h>
-#include <unistd.h>
+#define _GNU_SOURCE
 
 
-#ifndef UNIX_PATH_MAX
-struct sockaddr_un sizeCheck;
-#define UNIX_PATH_MAX sizeof(sizeCheck.sun_path)
-#endif
+
+#include "common.h"
 
 #define MAX_NAME_LENGTH 256
 #define MAX_LOCAL_CLIENTS 20
 #define MAX_REMOTE_CLIENTS 20
 
-#define RED_COLOR "\e[1;31m"
-#define RESET_COLOR "\e[0m"
-
-#define FAILURE_EXIT(msg, ...) {                            \
-    printf(RED_COLOR msg RESET_COLOR, ##__VA_ARGS__);       \
-    exit(EXIT_FAILURE);                                     }
-int errorCode = 0;
-
 int unixSocketDesc;
 int inetSocketDesc;
-int epollDesc;
+int registeryEpollDesc;
+int taskEpollDesc;
 
 pthread_mutex_t clientsMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t expressionMutex = PTHREAD_MUTEX_INITIALIZER;
 
+pthread_cond_t expressionProcessed = PTHREAD_COND_INITIALIZER;
 
-enum operation{
-    ADD,
-    SUB,
-    MUL,
-    DIV,
-    NAME,
-    RESULTS,
-    ERROR
-};
-
-struct {
-    u_int8_t type;
-    u_int16_t size;
-    int arg1;
-    int arg2;
-} *expression;
-
-struct message {
-    u_int8_t type;
-    u_int16_t size;
-    void *content;
-};
-
-
-//Program structure -------
+//------ Program structure ---------
 int main(int, char**);
     void cleanUp();
-    //socketTask
+
+    //communicationThread
         void handleRegistery();
             int setName();
             void rejectClient();
             void registerClient();
         void handleTaskDelegation();
         void handleResults();
-            void unregisterClient(int);
+
+    //pingThread
     void* pingTask(void*);
+        void unregisterClient(int);
+
+    //inputThread
     void* inputTask(void*);
-//-------------------------
+        void incorrectExpression();
+//-----------------------------------
 
 
 
@@ -82,29 +48,29 @@ struct {
         struct sockaddr_un unixAddr;
         struct sockaddr_in inetAddr;
     } addr;
+    int status;
 }clients[MAX_LOCAL_CLIENTS + MAX_REMOTE_CLIENTS];
 int clientsCounter = 0;
 
+pthread_t pingThreadID;
+pthread_t inputThreadID;
+char *filePath;
 
 int main(int argc, char **argv) {
     int result;
     in_port_t portID;
-    char *filePath;
-    pthread_t pingThreadID;
-    pthread_t inputThreadID;
 
     atexit(cleanUp);
 
     //PARSE ARGS
 
     if(argc != 3)
-        FAILURE_EXIT("Incorrect format of comand line arguments");
+        FAILURE_EXIT("Incorrect format of comand line arguments")
 
     char *dump;
     portID = (in_port_t)strtol(argv[1], &dump, 10);
     if(*dump != '\0' || portID < 1024 || portID > (1 << 16))
-        FAILURE_EXIT("Incorrect format of comand line arguments");
-
+        FAILURE_EXIT("Incorrect format of comand line arguments")
     filePath = argv[2];
     if(strlen(filePath) > UNIX_PATH_MAX);
 
@@ -155,26 +121,26 @@ int main(int argc, char **argv) {
 
     //EPOLL
 
-    epollDesc = epoll_create(2137);
-/*
+    taskEpollDesc = epoll_create(2137);
+    registeryEpollDesc = epoll_create(2137);
+
     union epoll_data unixEpollData = {
         .fd = unixSocketDesc
     };
     struct epoll_event unixEpollEvent = {
-        .events = EPOLLIN | EPOLLRDHUP,
-
+        .events = EPOLLIN,
         .data = unixEpollData
     };
-    epoll_ctl(epollDesc, EPOLL_CTL_ADD, unixSocketDesc, &unixEpollEvent);
+    epoll_ctl(registeryEpollDesc, EPOLL_CTL_ADD, unixSocketDesc, &unixEpollEvent);
 
     union epoll_data inetEpollData = {
         .fd = inetSocketDesc
     };
     struct epoll_event inetEpollEvent = {
-        .events = EPOLLIN | EPOLLRDHUP,
-        .data = unixEpollData
+        .events = EPOLLIN,
+        .data = inetEpollData
     };
-    epoll_ctl(epollDesc, EPOLL_CTL_ADD, inetSocketDesc, &inetEpollEvent);*/
+    epoll_ctl(registeryEpollDesc, EPOLL_CTL_ADD, inetSocketDesc, &inetEpollEvent);
 
     //SOCKET TASK
 
@@ -191,10 +157,11 @@ void cleanUp(){
 
     for(int i = 0; i < clientsCounter; i++)
         close(clients[i].desc);
-    close(epollDesc);
+    close(taskEpollDesc);
 
     shutdown(unixSocketDesc, SHUT_RDWR);
     close(unixSocketDesc);
+    unlink(filePath);
 
     shutdown(inetSocketDesc, SHUT_RDWR);
     close(inetSocketDesc);
@@ -207,43 +174,31 @@ void cleanUp(){
 
 void handleRegistery() {
     int result;
+    struct epoll_event event;
 
-    struct sockaddr_un unixTmpAddr;
-    struct sockaddr_in inetTmpAddr;
-    socklen_t len;
-
+    socklen_t length;
+    socklen_t controlValue;
 
     pthread_mutex_lock(&clientsMutex);
 
-    len = sizeof(unixTmpAddr);
+    result = epoll_wait(registeryEpollDesc, &event, 1, 0);
+    if(result == 1) {
+        if(event.data.fd == unixSocketDesc)
+            controlValue = length = sizeof(struct sockaddr_un);
+        else
+            controlValue = length = sizeof(struct sockaddr_in);
 
-    clients[clientsCounter].desc = accept(unixSocketDesc, (struct sockaddr *) &unixTmpAddr, &len);
-    if (clients[clientsCounter].desc != -1 && len == sizeof(unixTmpAddr)) {
-        clients[clientsCounter].addr.unixAddr = unixTmpAddr;
-        result = setName();
-        if(result == 0)
-            rejectClient();
-        else if (result == 1)
-            registerClient();
-    }
-    else if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        FAILURE_EXIT("Was unable to accept local client: %s", strerror(errno))
-    }
+        clients[clientsCounter].desc = accept(event.data.fd, (struct sockaddr *) &clients[clientsCounter].addr, &length);
 
-    len = sizeof(inetTmpAddr);
-    clients[clientsCounter].desc = accept(inetSocketDesc, (struct sockaddr *) &inetTmpAddr, &len);
-    if (clients[clientsCounter].desc != -1 && len == sizeof(inetTmpAddr)) {
-        clients[clientsCounter].addr.inetAddr = inetTmpAddr;
-        result = setName();
-        if(result == 0)
-            rejectClient();
-        else if (result == 1)
-            registerClient();
+        if (clients[clientsCounter].desc != -1 && length == controlValue) {
+            result = setName();
+            if (result == 0)
+                rejectClient();
+            else if (result == 1)
+                registerClient();
+        } else if (errno != EAGAIN && errno != EWOULDBLOCK)
+            FAILURE_EXIT("Was unable to accept %s client: %s", strerror(errno), event.data.fd == unixSocketDesc ? "local" : "remote")
     }
-    else if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        FAILURE_EXIT("Was unable to accept remote client: %s", strerror(errno))
-    }
-
     pthread_mutex_unlock(&clientsMutex);
 }
 
@@ -277,7 +232,7 @@ int setName() {
 }
 void rejectClient() {
     ssize_t result;
-    struct {
+    struct __attribute__((__packed__)){
         u_int8_t type;
         u_int16_t size;
     } msg;
@@ -304,7 +259,7 @@ void registerClient() {
     epollData.fd = clients[clientsCounter].desc;
     epollEvent.events = EPOLLIN;
     epollEvent.data = epollData;
-    result = epoll_ctl(epollDesc, EPOLL_CTL_ADD, clients[clientsCounter].desc, &epollEvent);
+    result = epoll_ctl(taskEpollDesc, EPOLL_CTL_ADD, clients[clientsCounter].desc, &epollEvent);
     if(result == -1)
         FAILURE_EXIT("Was unable to add clients descriptor to epoll: %s", strerror(errno))
     clientsCounter++;
@@ -322,6 +277,7 @@ void handleTaskDelegation() {
             if (result == sizeof(*expression)) {
                 free(expression);
                 expression = NULL;
+                pthread_cond_signal(&expressionProcessed);
             } else
                 printf("In 'handleTaskDelegation' was unable to send task to client: %s", strerror(errno));
         }
@@ -336,33 +292,80 @@ void handleResults() {
     struct message msg;
     struct epoll_event event;
 
-    result = epoll_wait(epollDesc, &event, 1, 0);                  //TODO: 1 event == 1 msg or 1 byte?
+    result = epoll_wait(taskEpollDesc, &event, 1, 0);
     if (result == 1) {
         result = recv(event.data.fd, &msg, 3, MSG_DONTWAIT);
-        if (result == 3 && msg.type == RESULTS) {
+        if (result == 3) {
             msg.content = malloc(msg.size);
-
             result = recv(event.data.fd, msg.content, msg.size, MSG_WAITALL);
-            if (result == msg.size)
-                printf("Result: %d", *(int *) msg.content);
-
+            if (result == msg.size) {
+                switch (msg.type) {
+                    case RESULTS:
+                        printf("Result: %d", *(int *) msg.content);
+                        break;
+                    case PONG: {
+                        pthread_mutex_lock(&clientsMutex);
+                        for(int i = 0; i < clientsCounter; i++)
+                            if(clients[i].desc == event.data.fd) clients[i].status = 1;
+                        pthread_mutex_unlock(&clientsMutex);
+                        break;
+                    }
+                    case ERROR:
+                        printf("Error: %s", (char*)msg.content);
+                        break;
+                    default:
+                        break;
+                }
+                free(msg.content);
+                return;
+            }
             free(msg.content);
-            return;
         }
         if (result == 0)
             printf("Client has shut down when sending results");
         if (result == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
             printf("Was unable to obtain results from client: %s", strerror(errno));
-        unregisterClient(event.data.fd);
+        //unregisterClient(event.data.fd);
+    }
+}
+
+void* pingTask(void* dummy) {
+
+    ssize_t result;
+    struct __attribute__((__packed__)) {
+        u_int8_t type;
+        u_int16_t size;
+    } pingMsg;
+    pingMsg.type = PING;
+    pingMsg.size = 0;
+
+    int clientsPinged;
+
+    while (1) {
+        pthread_mutex_lock(&clientsMutex);
+        clientsPinged = clientsCounter;
+        for (int i = 0; i < clientsCounter; i++) {
+            clients[i].status = 0;
+            result = send(clients[i].desc, &pingMsg, sizeof(pingMsg), 0);
+            if (result == -1)
+                printf("In 'pingTask' was unable to ping client: %s", strerror(errno));
+        }
+        pthread_mutex_unlock(&clientsMutex);
+
+        sleep(2);
+
+        for (int i = 0; i < clientsPinged; i++)
+            if (clients[i].status == 0)
+                unregisterClient(clients[i].desc);
     }
 }
 
 void unregisterClient(int clientDesc){
     int result;
 
-    result = epoll_ctl(epollDesc, EPOLL_CTL_DEL, clientDesc, NULL);
+    result = epoll_ctl(taskEpollDesc, EPOLL_CTL_DEL, clientDesc, NULL);
     if(result == -1)
-        FAILURE_EXIT("Was unable to remove clients descriptor from epoll: %s", strerror(errno))
+    FAILURE_EXIT("Was unable to remove clients descriptor from epoll: %s", strerror(errno))
 
     pthread_mutex_lock(&clientsMutex);
 
@@ -376,9 +379,65 @@ void unregisterClient(int clientDesc){
     clientsCounter--;
 }
 
-void* pingTask(void* dummy){
-    
-}
-void* inputTask(void* dummy){
+void* inputTask(void* dummy) {
+    char* buffer = NULL;
+    size_t size = 0;
+    char *dump;
 
+    while (1) {
+        pthread_mutex_lock(&expressionMutex);
+
+        while(expression != NULL)
+            pthread_cond_wait(&expressionProcessed, &expressionMutex);
+
+        getline(&buffer, &size, stdin);
+        expression = malloc(sizeof(*expression));
+        expression->size = sizeof(int) * 2;
+
+        expression->arg1 = (int) strtol(strtok(buffer, " \n\t"), &dump, 10);
+        if (*dump != '\0') {
+            incorrectExpression();
+            continue;
+        }
+
+        dump = strtok(NULL, " \n\t");
+        switch (*dump) {
+            case '+':
+                expression->type = ADD;
+                break;
+            case '-':
+                expression->type = SUB;
+                break;
+            case 'x':
+            case '*':
+                expression->type = MUL;
+                break;
+            case ':':
+            case '/':
+                expression->type = DIV;
+                break;
+            default:
+                incorrectExpression();
+                continue;
+        }
+        if(dump[1] != '\0') {
+            incorrectExpression();
+            continue;
+        }
+
+        expression->arg2 = (int) strtol(strtok(NULL, " \n\t"), &dump, 10);
+        if (*dump != '\0') {
+            incorrectExpression();
+            continue;
+        }
+
+        pthread_mutex_unlock(&expressionMutex);
+    }
+}
+
+void incorrectExpression(){
+    printf("Incorrect expression\n");
+    free(expression);
+    expression = NULL;
+    pthread_mutex_unlock(&expressionMutex);
 }
