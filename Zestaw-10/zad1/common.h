@@ -5,6 +5,9 @@
 #ifndef SOCKETS_COMMON_H
 #define SOCKETS_COMMON_H
 
+#define _GNU_SOURCE
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -14,6 +17,7 @@
 #include <errno.h>
 #include <sys/epoll.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 
 #define RED_COLOR "\e[1;31m"
 #define RESET_COLOR "\e[0m"

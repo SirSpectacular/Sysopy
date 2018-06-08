@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 
 
 #include "common.h"
@@ -65,12 +63,12 @@ int main(int argc, char **argv) {
     //PARSE ARGS
 
     if(argc != 3)
-        FAILURE_EXIT("Incorrect format of comand line arguments")
+        FAILURE_EXIT("Incorrect format of comand line arguments\n")
 
     char *dump;
     portID = (in_port_t)strtol(argv[1], &dump, 10);
     if(*dump != '\0' || portID < 1024 || portID > (1 << 16))
-        FAILURE_EXIT("Incorrect format of comand line arguments")
+        FAILURE_EXIT("Incorrect format of comand line arguments\n")
     filePath = argv[2];
     if(strlen(filePath) > UNIX_PATH_MAX);
 
@@ -78,32 +76,32 @@ int main(int argc, char **argv) {
 
     unixSocketDesc = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
     if(unixSocketDesc == -1)
-        FAILURE_EXIT("Was unable to create unix socket: %s", strerror(errno));
+        FAILURE_EXIT("Was unable to create unix socket: %s\n", strerror(errno))
     struct sockaddr_un unixAddr;
     unixAddr.sun_family = AF_UNIX;
     strcpy(unixAddr.sun_path, filePath);
     result = bind(unixSocketDesc, (const struct sockaddr *)&unixAddr, sizeof(unixAddr));
     if(result == -1)
-        FAILURE_EXIT("Was unable to bind unix socket: %s", strerror(errno));
+        FAILURE_EXIT("Was unable to bind unix socket: %s\n", strerror(errno))
     result = listen(unixSocketDesc, MAX_LOCAL_CLIENTS);
     if(result == -1)
-        FAILURE_EXIT("Error occurred, when tired to open unix socket for connection requests: %s", strerror(errno));
+        FAILURE_EXIT("Error occurred, when tired to open unix socket for connection requests: %s\n", strerror(errno));
 
 
     inetSocketDesc = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
     if(inetSocketDesc == -1)
-        FAILURE_EXIT("Was unable to create inet socket: %s", strerror(errno));
+        FAILURE_EXIT("Was unable to create inet socket: %s", strerror(errno))
     struct sockaddr_in inetAddr = {
             .sin_family = AF_INET,
-            .sin_port = portID,              /* port in network byte order */
-            .sin_addr.s_addr = INADDR_ANY    /* address in network byte order */
+            .sin_port = htons(portID),              /* port in network byte order */
+            .sin_addr.s_addr = INADDR_ANY           /* address in network byte order */
     };
     result = bind(inetSocketDesc, (const struct sockaddr *)&inetAddr, sizeof(inetAddr));
     if(result == -1)
-        FAILURE_EXIT("Was unable to bind inet socket: %s", strerror(errno));
+        FAILURE_EXIT("Was unable to bind inet socket: %s", strerror(errno))
     result = listen(inetSocketDesc , MAX_REMOTE_CLIENTS);
     if(result == -1)
-    FAILURE_EXIT("Error occurred, when tired to open inet socket for connection requests: %s", strerror(errno));
+    FAILURE_EXIT("Error occurred, when tired to open inet socket for connection requests: %s\n", strerror(errno))
 
     //INIT THREADS
 
@@ -177,27 +175,26 @@ void handleRegistery() {
     struct epoll_event event;
 
     socklen_t length;
-    socklen_t controlValue;
 
     pthread_mutex_lock(&clientsMutex);
 
     result = epoll_wait(registeryEpollDesc, &event, 1, 0);
     if(result == 1) {
         if(event.data.fd == unixSocketDesc)
-            controlValue = length = sizeof(struct sockaddr_un);
+            length = sizeof(struct sockaddr_un);
         else
-            controlValue = length = sizeof(struct sockaddr_in);
+            length = sizeof(struct sockaddr_in);
 
         clients[clientsCounter].desc = accept(event.data.fd, (struct sockaddr *) &clients[clientsCounter].addr, &length);
 
-        if (clients[clientsCounter].desc != -1 && length == controlValue) {
+        if (clients[clientsCounter].desc != -1) {
             result = setName();
             if (result == 0)
                 rejectClient();
             else if (result == 1)
                 registerClient();
-        } else if (errno != EAGAIN && errno != EWOULDBLOCK)
-            FAILURE_EXIT("Was unable to accept %s client: %s", strerror(errno), event.data.fd == unixSocketDesc ? "local" : "remote")
+        } else if (clients[clientsCounter].desc == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
+            FAILURE_EXIT("Was unable to accept %s client: %s\n", event.data.fd == unixSocketDesc ? "local" : "remote", strerror(errno));
     }
     pthread_mutex_unlock(&clientsMutex);
 }
@@ -223,9 +220,9 @@ int setName() {
         }
     }
     if (result == 0)
-        printf("Client has shut down during registration");
+        printf("Client has shut down during registration\n");
     else
-        printf("Was unable to obtain client's name: %s", strerror(errno));
+        printf("Was unable to obtain client's name: %s\n", strerror(errno));
 
     close(clients[clientsCounter].desc);
     return -1;
@@ -243,12 +240,13 @@ void rejectClient() {
 
     result = send(clients[clientsCounter].desc, &msg, sizeof(msg), MSG_MORE);
     if(result == -1)
-        printf("In 'rejectClient' was unable to send message header: %s", strerror(errno));
+        printf("In 'rejectClient' was unable to send message header: %s\n", strerror(errno));
     result = send(clients[clientsCounter].desc, errorMsg, sizeof(errorMsg), 0);
     if(result == -1)
-        printf("In 'rejectClient' was unable to send error message: %s", strerror(errno));
+        printf("In 'rejectClient' was unable to send error message: %s\n", strerror(errno));
 
     close(clients[clientsCounter].desc);
+    printf("client rejected\n");
 }
 
 void registerClient() {
@@ -261,7 +259,8 @@ void registerClient() {
     epollEvent.data = epollData;
     result = epoll_ctl(taskEpollDesc, EPOLL_CTL_ADD, clients[clientsCounter].desc, &epollEvent);
     if(result == -1)
-        FAILURE_EXIT("Was unable to add clients descriptor to epoll: %s", strerror(errno))
+        FAILURE_EXIT("Was unable to add clients descriptor to epoll: %s\n", strerror(errno))
+    printf("client registered: %s\n", clients[clientsCounter].name);
     clientsCounter++;
 }
 
@@ -277,9 +276,9 @@ void handleTaskDelegation() {
             if (result == sizeof(*expression)) {
                 free(expression);
                 expression = NULL;
-                pthread_cond_signal(&expressionProcessed);
+
             } else
-                printf("In 'handleTaskDelegation' was unable to send task to client: %s", strerror(errno));
+                printf("In 'handleTaskDelegation' was unable to send task to client: %s\n", strerror(errno));
         }
         pthread_mutex_unlock(&expressionMutex);
     }
@@ -297,21 +296,21 @@ void handleResults() {
         result = recv(event.data.fd, &msg, 3, MSG_DONTWAIT);
         if (result == 3) {
             msg.content = malloc(msg.size);
-            result = recv(event.data.fd, msg.content, msg.size, MSG_WAITALL);
-            if (result == msg.size) {
+            if(msg.size != 0)
+                result = recv(event.data.fd, msg.content, msg.size, MSG_WAITALL);
+            if (result == msg.size || msg.size == 0) {
                 switch (msg.type) {
                     case RESULTS:
-                        printf("Result: %d", *(int *) msg.content);
+                        printf("Result: %ld\n", *(long *) msg.content);
                         break;
-                    case PONG: {
+                    case PONG:
                         pthread_mutex_lock(&clientsMutex);
                         for(int i = 0; i < clientsCounter; i++)
                             if(clients[i].desc == event.data.fd) clients[i].status = 1;
                         pthread_mutex_unlock(&clientsMutex);
                         break;
-                    }
                     case ERROR:
-                        printf("Error: %s", (char*)msg.content);
+                        printf("Error: %s\n", (char*)msg.content);
                         break;
                     default:
                         break;
@@ -322,9 +321,9 @@ void handleResults() {
             free(msg.content);
         }
         if (result == 0)
-            printf("Client has shut down when sending results");
+            printf("Client has shut down when sending results\n");
         if (result == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
-            printf("Was unable to obtain results from client: %s", strerror(errno));
+            printf("Was unable to obtain results from client: %s\n", strerror(errno));
         //unregisterClient(event.data.fd);
     }
 }
@@ -346,13 +345,13 @@ void* pingTask(void* dummy) {
         clientsPinged = clientsCounter;
         for (int i = 0; i < clientsCounter; i++) {
             clients[i].status = 0;
-            result = send(clients[i].desc, &pingMsg, sizeof(pingMsg), 0);
+            result = send(clients[i].desc, &pingMsg, sizeof(pingMsg), MSG_WAITALL);
             if (result == -1)
-                printf("In 'pingTask' was unable to ping client: %s", strerror(errno));
+                printf("In 'pingTask' was unable to ping client: %s\n", strerror(errno));
         }
         pthread_mutex_unlock(&clientsMutex);
 
-        sleep(2);
+        sleep(5);
 
         for (int i = 0; i < clientsPinged; i++)
             if (clients[i].status == 0)
@@ -365,7 +364,7 @@ void unregisterClient(int clientDesc){
 
     result = epoll_ctl(taskEpollDesc, EPOLL_CTL_DEL, clientDesc, NULL);
     if(result == -1)
-    FAILURE_EXIT("Was unable to remove clients descriptor from epoll: %s", strerror(errno))
+    FAILURE_EXIT("Was unable to remove clients descriptor from epoll: %s\n", strerror(errno))
 
     pthread_mutex_lock(&clientsMutex);
 
@@ -375,6 +374,7 @@ void unregisterClient(int clientDesc){
     }
 
     pthread_mutex_unlock(&clientsMutex);
+    printf("Client unregistered\n");
     close(clientDesc);
     clientsCounter--;
 }
@@ -385,12 +385,12 @@ void* inputTask(void* dummy) {
     char *dump;
 
     while (1) {
+        getline(&buffer, &size, stdin);
         pthread_mutex_lock(&expressionMutex);
 
         while(expression != NULL)
             pthread_cond_wait(&expressionProcessed, &expressionMutex);
 
-        getline(&buffer, &size, stdin);
         expression = malloc(sizeof(*expression));
         expression->size = sizeof(int) * 2;
 
