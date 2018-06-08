@@ -210,12 +210,13 @@ int setName() {
         result = recv(clients[clientsCounter].desc, msg.content, msg.size, MSG_WAITALL);
         if (result == msg.size) {
             strcpy(clients[clientsCounter].name, msg.content);
-            free(msg.content);
 
             for (int i = 0; i < clientsCounter; i++)
-                if (strcmp(clients[i].name, msg.content) == 0)
+                if (strcmp(clients[i].name, msg.content) == 0) {
+                    free(msg.content);
                     return 0;
-
+                }
+            free(msg.content);
             return 1;
         }
     }
@@ -223,7 +224,6 @@ int setName() {
         printf("Client has shut down during registration\n");
     else
         printf("Was unable to obtain client's name: %s\n", strerror(errno));
-
     close(clients[clientsCounter].desc);
     return -1;
 }
@@ -324,7 +324,7 @@ void handleResults() {
             printf("Client has shut down when sending results\n");
         if (result == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
             printf("Was unable to obtain results from client: %s\n", strerror(errno));
-        //unregisterClient(event.data.fd);
+        unregisterClient(event.data.fd);
     }
 }
 
@@ -351,7 +351,7 @@ void* pingTask(void* dummy) {
         }
         pthread_mutex_unlock(&clientsMutex);
 
-        sleep(5);
+        sleep(2);
 
         for (int i = 0; i < clientsPinged; i++)
             if (clients[i].status == 0)

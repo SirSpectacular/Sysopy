@@ -91,9 +91,7 @@ int main(int argc, char **argv){
             msg.content = malloc(msg.size);
             if(msg.size != 0)
                 result = recv(socketDesc, msg.content, msg.size, MSG_WAITALL);
-            printf("here %d, %s\n", result , strerror(errno));
             if (result == msg.size || msg.size == 0) {
-                printf("here %d\n", msg.type);
                 switch (msg.type) {
                     case ADD:
                         sollution = ((int*)msg.content)[0] + ((int*)msg.content)[1];
@@ -120,10 +118,8 @@ int main(int argc, char **argv){
                         continue;
                     }
                     case ERROR:
-                        free(msg.content);
                         FAILURE_EXIT("Received error message from server: %s\n", (char*)msg.content)
                     default:
-                        free(msg.content);
                         FAILURE_EXIT("Unknown type of message received\n")
                 }
                 struct __attribute__((__packed__)){
