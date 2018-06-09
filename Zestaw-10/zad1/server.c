@@ -19,6 +19,7 @@ pthread_cond_t expressionProcessed = PTHREAD_COND_INITIALIZER;
 //------ Program structure ---------
 int main(int, char**);
     void cleanUp();
+    void intHandler(int);
 
     //communicationThread
         void handleRegistery();
@@ -59,6 +60,7 @@ int main(int argc, char **argv) {
     in_port_t portID;
 
     atexit(cleanUp);
+    signal(SIGINT, intHandler);
 
     //PARSE ARGS
 
@@ -169,6 +171,9 @@ void cleanUp(){
     }
 }
 
+void intHandler(int sig){
+    exit(0);
+}
 
 void handleRegistery() {
     int result;
@@ -246,7 +251,7 @@ void rejectClient() {
         printf("In 'rejectClient' was unable to send error message: %s\n", strerror(errno));
 
     close(clients[clientsCounter].desc);
-    printf("client rejected\n");
+    printf("Client rejected\n");
 }
 
 void registerClient() {
@@ -260,7 +265,7 @@ void registerClient() {
     result = epoll_ctl(taskEpollDesc, EPOLL_CTL_ADD, clients[clientsCounter].desc, &epollEvent);
     if(result == -1)
         FAILURE_EXIT("Was unable to add clients descriptor to epoll: %s\n", strerror(errno))
-    printf("client registered: %s\n", clients[clientsCounter].name);
+    printf("Client registered: %s\n", clients[clientsCounter].name);
     clientsCounter++;
 }
 
@@ -276,7 +281,6 @@ void handleTaskDelegation() {
             if (result == sizeof(*expression)) {
                 free(expression);
                 expression = NULL;
-
             } else
                 printf("In 'handleTaskDelegation' was unable to send task to client: %s\n", strerror(errno));
         }
@@ -300,8 +304,8 @@ void handleResults() {
                 result = recv(event.data.fd, msg.content, msg.size, MSG_WAITALL);
             if (result == msg.size || msg.size == 0) {
                 switch (msg.type) {
-                    case RESULTS:
-                        printf("Result: %ld\n", *(long *) msg.content);
+                    case RESULT:
+                        printf("Result #%d: %ld\n", ((int*)msg.content)[2],*(long*) msg.content);
                         break;
                     case PONG:
                         pthread_mutex_lock(&clientsMutex);
@@ -321,7 +325,7 @@ void handleResults() {
             free(msg.content);
         }
         if (result == 0)
-            printf("Client has shut down when sending results\n");
+            printf("Client has shut down\n");
         if (result == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
             printf("Was unable to obtain results from client: %s\n", strerror(errno));
         unregisterClient(event.data.fd);
@@ -364,17 +368,20 @@ void unregisterClient(int clientDesc){
 
     result = epoll_ctl(taskEpollDesc, EPOLL_CTL_DEL, clientDesc, NULL);
     if(result == -1)
-    FAILURE_EXIT("Was unable to remove clients descriptor from epoll: %s\n", strerror(errno))
+        FAILURE_EXIT("Was unable to remove clients descriptor from epoll: %s\n", strerror(errno))
 
     pthread_mutex_lock(&clientsMutex);
 
     for(int i = 0, flag = 0; i < clientsCounter; i++) {
         if(flag) clients[i - 1] = clients[i];
-        else if(clients[i].desc == clientDesc) flag = 1;
+        else if(clients[i].desc == clientDesc) {
+            flag = 1;
+            printf("Client unregistered: %s\n", clients[i].name);
+        }
     }
 
     pthread_mutex_unlock(&clientsMutex);
-    printf("Client unregistered\n");
+
     close(clientDesc);
     clientsCounter--;
 }
@@ -383,6 +390,7 @@ void* inputTask(void* dummy) {
     char* buffer = NULL;
     size_t size = 0;
     char *dump;
+    int counter = 0;
 
     while (1) {
         getline(&buffer, &size, stdin);
@@ -392,7 +400,7 @@ void* inputTask(void* dummy) {
             pthread_cond_wait(&expressionProcessed, &expressionMutex);
 
         expression = malloc(sizeof(*expression));
-        expression->size = sizeof(int) * 2;
+        expression->size = sizeof(int) * 3;
 
         expression->arg1 = (int) strtol(strtok(buffer, " \n\t"), &dump, 10);
         if (*dump != '\0') {
@@ -430,6 +438,7 @@ void* inputTask(void* dummy) {
             incorrectExpression();
             continue;
         }
+        expression->counter = counter++;
 
         pthread_mutex_unlock(&expressionMutex);
     }
@@ -441,3 +450,4 @@ void incorrectExpression(){
     expression = NULL;
     pthread_mutex_unlock(&expressionMutex);
 }
+

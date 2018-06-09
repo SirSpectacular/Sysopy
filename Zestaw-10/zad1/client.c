@@ -1,15 +1,21 @@
 //
 // Created by student on 07.06.18.
 //
-#include <memory.h>
 #include "common.h"
+
+void cleanUp();
+void intHandler(int sig);
+
+int socketDesc;
 
 int main(int argc, char **argv){
     long result;
 
     char *clientName;
     int connectionMode;
-    int socketDesc;
+
+    atexit(cleanUp);
+    signal(SIGINT, intHandler);
 
     union{
         struct sockaddr_un unix;
@@ -31,7 +37,7 @@ int main(int argc, char **argv){
         if (strcmp(argv[2], "inet") == 0)
             connectionMode = 1;
         else
-            FAILURE_EXIT("Incorrect format of command line arguments: mode")
+            FAILURE_EXIT("Incorrect format of command line arguments: mode\n")
 
         sockAddr.inet.sin_family = AF_INET;
 
@@ -47,7 +53,7 @@ int main(int argc, char **argv){
 
     }
     else
-        FAILURE_EXIT("Incorrect format of command line arguments: quantity")
+        FAILURE_EXIT("Incorrect format of command line arguments: quantity\n")
 
     //CONNECT TO SERVER
 
@@ -61,7 +67,7 @@ int main(int argc, char **argv){
             connectionMode ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_un)
     );
     if(result < 0)
-        FAILURE_EXIT("Was unable to connect to server: %s", strerror(errno))
+        FAILURE_EXIT("Was unable to connect to server: %s\n", strerror(errno))
 
     //SEND NAME
 
@@ -126,11 +132,13 @@ int main(int argc, char **argv){
                     u_int8_t type;
                     u_int16_t size;
                     long sollution;
+                    int counter;
                 } resultMsg;
 
-                resultMsg.type = RESULTS;
-                resultMsg.size = sizeof(long);
+                resultMsg.type = RESULT;
+                resultMsg.size = sizeof(long) + sizeof(int);
                 resultMsg.sollution = sollution;
+                resultMsg.counter = ((int*)msg.content)[2];
 
                 result = send(socketDesc, &resultMsg, sizeof(resultMsg), MSG_WAITALL);
                 if(result == -1)
@@ -144,4 +152,13 @@ int main(int argc, char **argv){
             FAILURE_EXIT("Was unable to obtain results from server: %s\n", strerror(errno));
 
     }
+}
+
+void cleanUp(){
+    shutdown(socketDesc, SHUT_RDWR);
+    close(socketDesc);
+}
+
+void intHandler(int sig){
+    exit(0);
 }

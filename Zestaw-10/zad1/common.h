@@ -18,6 +18,8 @@
 #include <sys/epoll.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <signal.h>
+#include <memory.h>
 
 #define RED_COLOR "\e[1;31m"
 #define RESET_COLOR "\e[0m"
@@ -37,7 +39,7 @@ enum operation{
     MUL,
     DIV,
     NAME,
-    RESULTS,
+    RESULT,
     ERROR,
     PING,
     PONG
@@ -48,6 +50,7 @@ struct __attribute__((__packed__)){
     u_int16_t size;
     int arg1;
     int arg2;
+    int counter;
 } *expression = NULL;
 
 struct __attribute__((__packed__)) message {
