@@ -76,8 +76,8 @@ int main(int argc, char **argv){
         u_int16_t size;
     }nameMsg;
     nameMsg.type = NAME;
-    nameMsg.size = (uint16_t)(strlen(clientName) + 1);
     clientName = argv[1];
+    nameMsg.size = (uint16_t)(strlen(clientName) + 1);
 
     result = send(socketDesc, &nameMsg, 3, MSG_MORE);
     if(result == -1)

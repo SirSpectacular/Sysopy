@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
 
     char *dump;
     portID = (in_port_t)strtol(argv[1], &dump, 10);
-    if(*dump != '\0' || portID < 1024 || portID > (1 << 16))
+    if(*dump != '\0' || portID > (1 << 16))
         FAILURE_EXIT("Incorrect format of comand line arguments\n")
     filePath = argv[2];
     if(strlen(filePath) > UNIX_PATH_MAX);
